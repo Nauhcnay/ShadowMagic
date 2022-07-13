@@ -25,10 +25,10 @@ function main(){
         }
     };
 
-// thanks to https://community.adobe.com/t5/illustrator-discussions/remove-clipping-mask/m-p/1161937
+// thanks to https://community.adobe.com/t5/photoshop-ecosystem-discussions/clipping-mask/m-p/3852221#M279314
 function clipScan (layers) {
 
-    for (i = 0; i < layers.length; i++) { 
-        if (layers[i].grouped == true) layers[i].grouped = false;
+    for (j = 0; j < layers.length; j++) { 
+        if (layers[j].grouped == true) layers[j].grouped = false;
     }
 };

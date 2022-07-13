@@ -38,13 +38,14 @@ def psd_to_pngs(path_psd, path_pngs):
     cmd2 = "convert"
     for psd in tqdm(os.listdir(path_psd)):
         psd_f = PSDImage.open(join(path_psd, psd))
-        w, h = psd_f.size
         name, _ = splitext(psd)
         psd = join(path_psd, psd)   
         png = join(path_pngs, name+".png")
         # this will produce layer pngs without offset
         # RunCmd([cmd1, cmd2, psd, png]).Run()
+        w, h = psd_f[0].size
         for i in range(len(psd_f)):
+            if exists(png.replace(".png", "_%d.png"%i)): continue # skip if the current layer has been exported 
             img = psd_f[i].numpy()
             # get offset of current layer
             offset = psd_f[i].offset
@@ -57,8 +58,13 @@ def psd_to_pngs(path_psd, path_pngs):
             # pad each layer before saving
             res = np.ones((h, w, 4)) * 255
             res[:, :, 3] = 0 # set alpha channel to transparent by default
-            if w < img.shape[1] or h < img.shape[0]: img = img[0:h, 0:w, :] # sometimes the layer could even larger than the artboard!
-            res[t:b, l:r, :] = img * 255
+            if (w - l) < img.shape[1] or (h - t) < img.shape[0]: 
+                img = img[0:h-t, 0:w-l, :] # sometimes the layer could even larger than the artboard!
+            if t < 0 or l < 0: # t or l could also be negative number...
+                img = img[:-t if t < 0 else t, :-l if l < 0 else l, :]
+            top = t if t > 0 else 0
+            left = l if l > 0 else 0
+            res[top:img.shape[0]+top, left:img.shape[1]+left, :] = img * 255
             Image.fromarray(res.astype(np.uint8)).save(png.replace(".png", "_%d.png"%i))
 if __name__ == "__main__":
     '''psd layer to separate png images'''
