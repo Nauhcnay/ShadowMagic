@@ -8,8 +8,8 @@ function main(){
     var fileList= selectedFolder.getFiles("*.psd");
 
     // pop out a dialog to select the output folder
-    var outFolder = Folder.selectDialog("Please select the output folder");
-    if(outFolder == null) return;
+    // var outFolder = Folder.selectDialog("Please select the output folder");
+    // if(outFolder == null) return;
 
     // remove the clipping mask of each layer if possible
     if(fileList.length>0){
@@ -18,19 +18,17 @@ function main(){
             var fileRef = new File(fileList[i]);
             var docRef = app.open(fileRef);
             // iterate each layers
-            clipScan(docRef);
+            clipScan(docRef.layers);
+            docRef.save();
+            docRef.close();
             }
-
         }
     };
 
 // thanks to https://community.adobe.com/t5/illustrator-discussions/remove-clipping-mask/m-p/1161937
-function clipScan (docRef) {
+function clipScan (layers) {
 
-    for (i=docRef.pageItems.length-1;i>=0;i--) { 
-        if (docRef.pageItems.clipping == true){
-            docRef.pageItems.remove();
-        }
+    for (i = 0; i < layers.length; i++) { 
+        if (layers[i].grouped == true) layers[i].grouped = false;
     }
-
 };

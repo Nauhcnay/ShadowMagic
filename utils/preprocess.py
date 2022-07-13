@@ -57,7 +57,7 @@ def psd_to_pngs(path_psd, path_pngs):
             # pad each layer before saving
             res = np.ones((h, w, 4)) * 255
             res[:, :, 3] = 0 # set alpha channel to transparent by default
-            if w < img.shape[1] or h < img.shape[0]: img = img[0:h, 0:w] # sometimes the layer could even larger than the artboard!
+            if w < img.shape[1] or h < img.shape[0]: img = img[0:h, 0:w, :] # sometimes the layer could even larger than the artboard!
             res[t:b, l:r, :] = img * 255
             Image.fromarray(res.astype(np.uint8)).save(png.replace(".png", "_%d.png"%i))
 if __name__ == "__main__":
