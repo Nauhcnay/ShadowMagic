@@ -118,6 +118,7 @@ def psd_to_pngs(path_psd, path_pngs, counter, debug = False):
                     else:
                         if is_different_lname(name):
                             lname = KOR_TO_ENG_S.get(psd_f[i].name.lower(), psd_f[i].name.lower())
+                            layer_to_png(psd_f, i, lname, png, (h, w))
                         else:
                             lname = KOR_TO_ENG.get(psd_f[i].name.lower(), psd_f[i].name.lower())
                             layer_to_png(psd_f, i, lname, png, (h, w))
