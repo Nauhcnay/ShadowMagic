@@ -4,11 +4,13 @@
 3. shading layers to real GT
 4. create training dataset
 '''
-import os 
+import os
 import numpy as np
+import cv2
 from PIL import Image
 from psd_tools import PSDImage
 from tqdm import tqdm
+from thinning import thinning
 
 from os.path import join, splitext, split, exists
 
@@ -123,12 +125,129 @@ def psd_to_pngs(path_psd, path_pngs, counter, debug = False):
                             lname = KOR_TO_ENG.get(psd_f[i].name.lower(), psd_f[i].name.lower())
                             layer_to_png(psd_f, i, lname, png, (h, w))
             counter += 1
+
+def flat_to_fillmap(flat):
+    '''
+    flat png to fillmap, we need to consider flat always
+        have alpha channel
+    '''
+    print("Log:\tconverting flat PNG to fill map...")
+    h, w = flat.shape[0], flat.shape[1]
+    alpha_channel = flat[:,:,3]
+    r, g, b = flat[:,:,0], flat[:,:,1], flat[:,:,2]# split to r, g, b channel
+    color_channel = r * 1e6 + g * 1e3 + b
+    color_channel[alpha_channel == 0] = -1
+    fill = np.ones((h,w)) # assume transparent region as 0
+    fill[alpha_channel == 0] = 0 # fill region starts at 2
+    color_idx = 2
+    color_map = [np.array([0,0,0,0]), np.array([0,0,0,255])]
+    thresh_color = h * w *0.0005
+    for c in tqdm(np.unique(color_channel)):
+        if c == -1: continue # skip transparent color
+        if c == 0: continue # skip black color, it should be the line drawing
+        # check if this region should be transparent
+        mask = (color_channel == c).squeeze()
+        if mask.sum() < thresh_color:
+            fill[mask] = 1
+            continue
+        c_alpha = fill[mask]
+        # find the majority color under current mask in alpha channel
+        c_alpha_major, count = np.unique(c_alpha, return_counts = True)
+        c_alpha = c_alpha_major[np.argmax(count)]
+        # skip this color if the region is transparent
+        if c_alpha == 0: continue
+        # record into the fillmap
+        fill[mask] = color_idx
+        # update color index and dict
+        color_idx += 1
+        color_map.append(int_to_color(c))
+    return fill.astype(int), np.array(color_map).astype(np.uint8)
+
+def fillmap_to_color(fill, color_map=None):
+    if color_map is None:
+        color_map = np.random.randint(0, 255, (np.max(fill) + 1, 3), dtype=np.uint8)
+        color_map[0] = [255, 255, 255]
+        return color_map[fill]
+    else:
+        return color_map[fill]
+
+def int_to_color(color):
+    r = int(color//1e6)
+    g = int(color%1e6//1e3)
+    b = int(color % 1000)
+    return np.array([r, g, b, 255])
+
+def flat_refine(flat, line):
+    ''' 
+    Given: 
+        flat, a numpy array as the flat png
+        line, a numpy array as the line art
+    Return:
+        res, a numpy array that have the clear flat region boundary
+    '''
+    # convert line from rgba to bool mask
+    # and interestingly, they use alpha channel as the grayscal image...
+    line_gray = 255 - line[:,:,3]
+    line_gray = cv2.adaptiveThreshold(line_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    kernel = np.array([[0,1,0],[1,1,1],[0,1,0]]).astype(np.uint8)
+    line_gray = cv2.erode(line_gray, kernel, iterations = 2) 
+    # convert flat to fill map
+    fill, color_map = flat_to_fillmap(flat)
+    # set line drawing into the fill map
+    fill[(255 - line_gray).astype(bool)] = 1
+    fill = thinning(fill)
+    flat_refined =  fillmap_to_color(fill, color_map)
+    return flat_refined, fill
+
+def shadow_refine(shadow, line):
+    '''seems the shadow region also need a refinement'''
+    line_gray = 255 - line[:,:,3]
+    line_gray = cv2.adaptiveThreshold(line_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    kernel = np.array([[0,1,0],[1,1,1],[0,1,0]]).astype(np.uint8)
+    # line_gray = cv2.erode(line_gray, kernel, iterations = 1)
+    shadow_refined = 255 - shadow[:, :, 3]
+    # shadow_refined[(255 - line_gray).astype(bool)] = 1
+    shadow_refined = thinning(shadow_refined)
+    return shadow_refined
+
+def mask_shadow(fillmap, shadow, line, split = False):
+    shadow = shadow_refine(shadow, line)
+    if split is False:
+        mask = fillmap == 0
+        shadow[mask] = 255
+        return shadow
+    else:
+        # not sure if this branch is necessary
+        # split shadow region by flat region
+        pass
+
+def png_refine(path_pngs, path_output):
+    for png in os.listdir(path_pngs):
+        if "flat" not in png: continue
+        # open files
+        flat = np.array(Image.open(os.path.join(path_pngs, png)))
+        line = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "line"))))
+        shadow = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "shadow"))))
+        # refine pngs  
+        flat, fill = flat_refine(flat, line)
+        shadow_full = mask_shadow(fill, shadow, line)
+        # shadow_split = mask_shadow(fill, shadow, line, True)
+        # save to results to target folder
+        Image.fromarray(line).save(os.path.join(path_output, png.replace("flat", "line")))
+        Image.fromarray(flat).save(os.path.join(path_output, png))
+        Image.fromarray(shadow_full).save(os.path.join(path_output, png.replace("flat", "shadow")))
+
 if __name__ == "__main__":
-    '''psd layer to separate png images'''
-    # PATH_TO_PSD = ["../dataset/raw/Natural", "../dataset/raw/NEW", "../dataset/raw/REFINED"]
-    PATH_TO_PSD = ["../dataset/raw/Natural"]
-    OUT_PATH = "../dataset/raw_png"
-    psd_to_pngs(PATH_TO_PSD, OUT_PATH, 0, debug = False)
+    # '''psd layer to separate png images'''
+    # # PATH_TO_PSD = ["../dataset/raw/Natural", "../dataset/raw/NEW", "../dataset/raw/REFINED"]
+    # PATH_TO_PSD = ["../dataset/raw/Natural"]
+    # OUT_PATH = "../dataset/Natural_png_rough"
+    # psd_to_pngs(PATH_TO_PSD, OUT_PATH, 0, debug = False)
+    
+
     '''correct shading layers'''
+    OUT_PATH = "../dataset/Natural_png_rough"
+    REFINED_PATH = "../dataset/Natural_png_rough_refined"
+    png_refine(OUT_PATH, REFINED_PATH)
 
 
