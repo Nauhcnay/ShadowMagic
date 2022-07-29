@@ -25,6 +25,7 @@ class BasicDataset(Dataset):
         self.length = len(self.ids)
         # set dirction dict, mapping text to float number
         self.to_dir_label = {"right": 0.25, "left":0.5, "back":0.75, "top":1.0}
+        self.lable_flip = {0.25:0.5, 0.5:0.25}
         logging.info(f'Creating dataset with {len(self.ids)} examples')
 
 
@@ -99,14 +100,47 @@ class BasicDataset(Dataset):
         flat_np[line_mask] = 0
         shad_np = self.remove_alpha(shad_np, gray = True)
 
+        # resize image, now we still have to down sample the input a little bit for a easy training
+        h, w = shad_np.shape
+        h, w = self.resize_hw(h, w)
+        flat_np = cv2.resize(flat_np, (w, h), interpolation = cv2.INTER_AREA)
+        shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_AREA)
+
         # augment image, let's do this in numpy!
+        flat_np, shad_np, label = self.random_flip([flat_np, shad_np], label)
 
         # convert to tensor, and the following process should all be done by cuda
         flat = self.to_tensor(flat_np)
-        shad = self.to_tensor(shad_np / 255, False) # this is label infact
+        shad = self.to_tensor(1 - shad_np / 255, False) # this is label infact
         
         # it returns tensor at last
         return flat, shad
+
+    def random_flip(self, imgs, label, p = 0.5):
+        # we only consider the horizontal flip
+        dice = np.random.uniform()
+        if dice < p and label in self.lable_flip:
+            flipped = []
+            for img in imgs:
+                # flip the image and label
+                flipped.append(np.flip(img, axis = 1))
+            label = self.lable_flip.get(label, label)
+        else:
+            # don't change anything
+            flipped = imgs
+        return flipped, label
+    
+    def resize_hw(h, w):
+        # we resize the shorter edge to the target size
+        if h > w:
+            ratio =  h / w
+            h = int(self.resize * ratio)
+            w = self.resize
+        else:
+            ratio = w / h
+            w = int(self.resize * ratio)
+            h = self.resize
+        return h, w
 
     def to_tensor(self, pil_img, normalize = True):
         # assume the input is always grayscal
@@ -125,5 +159,4 @@ class BasicDataset(Dataset):
                         T.ToTensor(),
                     ]
                 )
-
         return transforms(pil_img)

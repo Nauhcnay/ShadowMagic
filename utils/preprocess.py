@@ -15,8 +15,8 @@ from thinning import thinning
 from os.path import join, splitext, split, exists
 
 # we need convert the key word in the file name to directions
-KEY_TO_DIR = {"type1":"right", "type2":"left", "type3":"back", "type4":"top", "오":"right", "왼":"left", 
-    "역": "back", "위":"top"}
+KEY_TO_DIR = {"type1":"right", "type2":"left", "type3":"back", "type4":"top", "오":"right", "왼":"left",
+    "역": "back", "위":"top", "l":"left", "r":"right", "긍": "right", "긍정":"right","부":"left", "부정":"left"}
 
 # convert layer name to english
 KOR_TO_ENG = {"선화":"line", "레이어":"shadow", "밑색":"flat", "용지":"background", "배경":"background",
@@ -26,6 +26,7 @@ KOR_TO_ENG_S = {"선화":"line", "레이어":"shadow", "밑색":"flat", "용지"
 NAME_LIST = ["FULL01", "FULL02", "FULL03", "FULL04", "FULL05", "FULL06", "FULL07", "FULL08", "FACE03"]
 
 def is_different_lname(fname):
+    # there are some exceptions that we have to parse in a different rule
     for name in NAME_LIST:
         if name in fname: return True
     return False
@@ -83,6 +84,11 @@ def psd_to_pngs(path_psd, path_pngs, counter, debug = False):
                 light_dir = KEY_TO_DIR[name.split("_")[1].lower()]
             elif "REFINED" in path:
                 light_dir = KEY_TO_DIR[name.split("_")[2].lower()]
+            elif "D1" in path or "D2" in path:
+                if "-" in name:
+                    light_dir = KEY_TO_DIR[name.split("-")[-1].lower()]
+                else:
+                    light_dir = KEY_TO_DIR[name.split("_")[-1].lower()]
             else:
                 raise ValueError("the current folder has not been ready for parsing")
             psd = join(path, psd)   
@@ -93,8 +99,7 @@ def psd_to_pngs(path_psd, path_pngs, counter, debug = False):
             w, h = psd_f[0].size
             # read each layer in the opened psd file
             # the parse logic here is terrible...
-            for i in range(len(psd_f)):
-                
+            for i in range(len(psd_f)):    
                 if "왼" in name and "NEW" in path and debug is False:
                     if i == len(psd_f) - 1: 
                         lname = "line"
@@ -112,17 +117,17 @@ def psd_to_pngs(path_psd, path_pngs, counter, debug = False):
                         # if we get layer group
                         if psd_f[i].is_group():
                             for j in range(len(psd_f[i])):
-                                lname = psd_f[i][j].name
+                                lname = psd_f[i][j].name.lower()
                                 layer_to_png(psd_f[i], j, lname, png, (h, w))
                         else:
-                            lname = psd_f[i].name
+                            lname = psd_f[i].name.lower()
                             layer_to_png(psd_f, i, lname, png, (h, w))        
                     else:
                         if is_different_lname(name):
-                            lname = KOR_TO_ENG_S.get(psd_f[i].name.lower(), psd_f[i].name.lower())
+                            lname = KOR_TO_ENG_S.get(psd_f[i].name.lower(), psd_f[i].name.lower()).lower()
                             layer_to_png(psd_f, i, lname, png, (h, w))
                         else:
-                            lname = KOR_TO_ENG.get(psd_f[i].name.lower(), psd_f[i].name.lower())
+                            lname = KOR_TO_ENG.get(psd_f[i].name.lower(), psd_f[i].name.lower()).lower()
                             layer_to_png(psd_f, i, lname, png, (h, w))
             counter += 1
 
@@ -190,7 +195,7 @@ def flat_refine(flat, line):
     line_gray = 255 - line[:,:,3]
     line_gray = cv2.adaptiveThreshold(line_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
     kernel = np.array([[0,1,0],[1,1,1],[0,1,0]]).astype(np.uint8)
-    line_gray = cv2.erode(line_gray, kernel, iterations = 2) 
+    line_gray = cv2.erode(line_gray, kernel, iterations = 1) 
     # convert flat to fill map
     fill, color_map = flat_to_fillmap(flat)
     # set line drawing into the fill map
@@ -239,10 +244,10 @@ def png_refine(path_pngs, path_output):
 
 if __name__ == "__main__":
     # '''psd layer to separate png images'''
-    # # PATH_TO_PSD = ["../dataset/raw/Natural", "../dataset/raw/NEW", "../dataset/raw/REFINED"]
-    # PATH_TO_PSD = ["../dataset/raw/Natural"]
-    # OUT_PATH = "../dataset/Natural_png_rough"
-    # psd_to_pngs(PATH_TO_PSD, OUT_PATH, 0, debug = False)
+    # PATH_TO_PSD = ["../dataset/raw/Natural", "../dataset/raw/NEW", "../dataset/raw/REFINED"]
+    PATH_TO_PSD = ["../dataset/raw/D2"]
+    OUT_PATH = "../dataset/Natural_png_rough"
+    psd_to_pngs(PATH_TO_PSD, OUT_PATH, 177, debug = False)
     
 
     '''correct shading layers'''
