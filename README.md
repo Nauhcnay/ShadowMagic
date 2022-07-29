@@ -21,4 +21,8 @@ Then run:
 cd utils
 python preprocess.py
 ```
-Feel free the adjust this script if you need different output (like, different naming format or the refined flat png with differernt mask threshold and so on).
+Feel free the adjust this script if you need different output. For example:
+
+if you want to change the naming format, please look at line 58, change the varibale `png` to the new format you want.
+
+or if you want ot change the refinement degree of the flat png output, please look at line 193, change the iteration times will make the refinment stronger (more iters) or weaker (less iters).
