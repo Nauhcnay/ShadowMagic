@@ -8,7 +8,6 @@ from os import listdir
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms as T
-from torch.nn import Threshold
 
 
 class BasicDataset(Dataset):
@@ -92,41 +91,24 @@ class BasicDataset(Dataset):
         flat_np = np.array(Image.open(flat_path))
         shad_np = np.array(Image.open(shap_path))
         
+        # merge line and flat
+        flat_np = self.remove_alpha(flat_np)
+        line_th = cv2.adaptiveThreshold(line_np[:, :, 3] ,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+            cv2.THRESH_BINARY,11,2)
+        line_mask = np.expand_dims(line_th == 0, axis = -1)
+        flat_np[line_mask] = 0
+        shad_np = self.remove_alpha(shad_np, gray = True)
+
+        # augment image, let's do this in numpy!
 
         # convert to tensor, and the following process should all be done by cuda
-        line = self.to_tensor(line_np)
-        edge = self.to_tensor(edge_np)
-        
-        mask1 = self.to_tensor(mask1_np, normalize = False)
-        mask2 = self.to_tensor(mask2_np, normalize = False)
-
-        assert line.shape == line.shape, \
-            f'Line art and edge map {i} should be the same size, but are {line.shape} and {edge.shape}'
-
-        
-
-        imgs = self.augment(torch.cat((line, edge, mask1, mask2), dim=0))
+        flat = self.to_tensor(flat_np)
+        shad = self.to_tensor(shad_np / 255, False) # this is label infact
         
         # it returns tensor at last
-        return torch.chunk(imgs, 4, dim=0)
-
-    def to_point_list(self, img_np):
-        p = np.where(img_np < 220)
-        return p
-
-    def find_bbox(self, p):
-        t = p[0].min()
-        l = p[1].min()
-        b = p[0].max()
-        r = p[1].max()
-        return t,l,b,r
-
-    def crop_img(self, bbox, img_np):
-        t,l,b,r = bbox
-        return img_np[t:b, l:r]
+        return flat, shad
 
     def to_tensor(self, pil_img, normalize = True):
-
         # assume the input is always grayscal
         if normalize:
             transforms = T.Compose(
@@ -145,14 +127,3 @@ class BasicDataset(Dataset):
                 )
 
         return transforms(pil_img)
-    
-    def augment(self, tensors):
-        transforms = T.Compose(
-                [
-                    T.RandomHorizontalFlip(),
-                    T.RandomVerticalFlip(),
-                    T.RandomCrop(size = self.crop_size)
-
-                ]
-            )
-        return transforms(tensors)
