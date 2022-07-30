@@ -125,7 +125,12 @@ def train_net(
                 
                 global_step += 1
                 
-                if global_step % 1000 == 0 and args.log:
+                # record the loss more frequently
+                if global_step % 50 == 0 and args.log:
+                    wandb.log({'Total Loss': loss.item()}) 
+
+                # record the image output 
+                if global_step % 200 == 0:
                     sample = torch.cat((denormalize(imgs), (pred > 0.5).repeat(1, 3, 1, 1), gts.repeat(1, 3, 1, 1)), dim = 0)
                     if os.path.exists("./results/train/") is False:
                         logging.info("Creating ./results/train/")
