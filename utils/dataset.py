@@ -155,7 +155,7 @@ class BasicDataset(Dataset):
     def random_flip(self, imgs, label, p = 0.5):
         # we only consider the horizontal flip
         dice = np.random.uniform()
-        if dice < p and label in self.lable_flip:
+        if dice < p:
             flipped = []
             for img in imgs:
                 # flip the image and label
