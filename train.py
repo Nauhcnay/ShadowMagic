@@ -39,7 +39,7 @@ def train_net(
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize)
     dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True)
-    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=False)
     val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
     # we don't need valiation currently
     # val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
