@@ -25,7 +25,7 @@ class BasicDataset(Dataset):
         with open(join(img_path, "img_list.txt"), 'r') as f:
             self.ids = f.readlines()
         # split validation set, let's use 5% samples for validation
-        val_idx = int(len(self.ids) * 0.05)
+        val_idx = int(len(self.ids) * 0.95)
         if val:
             self.ids = self.ids[val_idx:]
         else:

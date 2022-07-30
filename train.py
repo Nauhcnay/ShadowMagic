@@ -72,10 +72,10 @@ def train_net(
     if args.log:
         wandb.init(project = "ShadowMagic Ver 0.1", entity="waterheater")
         wandb.config = {
-          "learning_rate": args.lr,
+          "learning_rate": lr,
           "epochs": epochs,
-          "batch_size": args.batchsize,
-          "crop_size": args.crop
+          "batch_size": batch_size,
+          "crop_size": crop_size
         }
         wandb.watch(net, log_freq=30)
 
@@ -126,8 +126,6 @@ def train_net(
                 global_step += 1
                 
                 if global_step % 1000 == 0 and args.log:
-                # if True and args.log:
-                    
                     sample = torch.cat((denormalize(imgs), (pred > 0.5).repeat(1, 3, 1, 1), gts.repeat(1, 3, 1, 1)), dim = 0)
                     if os.path.exists("./results/train/") is False:
                         logging.info("Creating ./results/train/")
@@ -165,16 +163,15 @@ def train_net(
                             val_sample = np.concatenate((val_img, val_pred, val_gt), axis = 1)
                             val_fig_res = wandb.Image(val_sample)
                             wandb.log({"Val Result":val_fig_res})
-
         # save model
         if save_cp and epoch % 100 == 0:
             try:
-                os.mkdir("checkpoint")
+                os.mkdir("checkpoints")
                 logging.info('Created checkpoint directory')
             except OSError:
                 pass
             torch.save(net.state_dict(),
-                       f'checkpoint/CP_epoch{epoch + 1}.pth')
+                       f'checkpoints/CP_epoch{epoch + 1}.pth')
             logging.info(f'Checkpoint {epoch + 1} saved !')
 
 def tensor_to_img(t):
