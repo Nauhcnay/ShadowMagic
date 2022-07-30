@@ -32,7 +32,7 @@ class UNet(nn.Module):
         # we will concat at this layers
         b, c, h, w = x3.shape
         # cat label to feature map
-        x3_cat = torch.cat((x3, label.expand(b, 1, h, w)), dim = 1)
+        x3_cat = torch.cat((x3, label.unsqueeze(-1).unsqueeze(-1).expand(b, 1, h, w)), dim = 1)
         x4 = self.down3(x3_cat)
         x5 = self.down4(x4)
         x = self.up1(x5, x4)

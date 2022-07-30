@@ -73,7 +73,7 @@ def train_net(
         wandb.init(project = "ShadowMagic Ver 0.1", entity="waterheater")
         wandb.config = {
           "learning_rate": lr,
-          "epochs": epochs,
+          "epochs": epochs, 
           "batch_size": batch_size,
           "crop_size": crop_size
         }
