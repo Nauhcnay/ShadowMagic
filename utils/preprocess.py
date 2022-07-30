@@ -193,9 +193,11 @@ def flat_refine(flat, line):
     # convert line from rgba to bool mask
     # and interestingly, they use alpha channel as the grayscal image...
     line_gray = 255 - line[:,:,3]
-    line_gray = cv2.adaptiveThreshold(line_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    _, line_gray = cv2.threshold(line_gray, 127, 255, cv2.THRESH_BINARY)
+    # line_gray = cv2.adaptiveThreshold(line_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
     kernel = np.array([[0,1,0],[1,1,1],[0,1,0]]).astype(np.uint8)
-    line_gray = cv2.erode(line_gray, kernel, iterations = 1) 
+    # if the iteration is set to less 2, we probably will get noisy boundary issue in the flat layer...
+    line_gray = cv2.erode(line_gray, kernel, iterations = 2) 
     # convert flat to fill map
     fill, color_map = flat_to_fillmap(flat)
     # set line drawing into the fill map
@@ -205,14 +207,7 @@ def flat_refine(flat, line):
     return flat_refined, fill
 
 def shadow_refine(shadow, line):
-    '''seems the shadow region also need a refinement'''
-    line_gray = 255 - line[:,:,3]
-    line_gray = cv2.adaptiveThreshold(line_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-    kernel = np.array([[0,1,0],[1,1,1],[0,1,0]]).astype(np.uint8)
-    # line_gray = cv2.erode(line_gray, kernel, iterations = 1)
     shadow_refined = 255 - shadow[:, :, 3]
-    # shadow_refined[(255 - line_gray).astype(bool)] = 1
-    shadow_refined = thinning(shadow_refined)
     return shadow_refined
 
 def mask_shadow(fillmap, shadow, line, split = False):
@@ -245,9 +240,9 @@ def png_refine(path_pngs, path_output):
 if __name__ == "__main__":
     # '''psd layer to separate png images'''
     # PATH_TO_PSD = ["../dataset/raw/Natural", "../dataset/raw/NEW", "../dataset/raw/REFINED"]
-    PATH_TO_PSD = ["../dataset/raw/D2"]
-    OUT_PATH = "../dataset/Natural_png_rough"
-    psd_to_pngs(PATH_TO_PSD, OUT_PATH, 177, debug = False)
+    # PATH_TO_PSD = ["../dataset/raw/D2"]
+    # OUT_PATH = "../dataset/Natural_png_rough"
+    # psd_to_pngs(PATH_TO_PSD, OUT_PATH, 177, debug = False)
     
 
     '''correct shading layers'''

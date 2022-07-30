@@ -12,11 +12,12 @@ from torchvision import transforms as T
 
 class BasicDataset(Dataset):
     
-    def __init__(self, img_path, crop_size = 256):
+    def __init__(self, img_path, crop_size = 256, resize = 1024, val = False):
+        # we may need some validation result in the future
         self.img_path = img_path
         self.crop_size = crop_size
         # we won't resize the image now, let's see how it will works
-        self.resize = 1024
+        self.resize = resize
         # scan the file list if necessary
         if exists(join(img_path, "img_list.txt")) == False:
             self.scan_imgs()
@@ -33,12 +34,13 @@ class BasicDataset(Dataset):
         # helper function to scan the full dataset
         print("Log:\tscan the %s"%self.img_path)
         imgs = []
-        for img in os.listdir(self.img_path):
+        img_path = join(self.img_path, "img")
+        for img in listdir(img_path):
             if "line" in img:
-                if exists(join(self.img_path, img.replace("line", "flat"))) and\
-                    exists(join(self.img_path, img.replace("line", "shadow"))):
-                    imgs.append(join(self.img_path, img))
-        with open("img_list.txt", 'w') as f:
+                if exists(join(img_path, img.replace("line", "flat"))) and\
+                    exists(join(img_path, img.replace("line", "shadow"))):
+                    imgs.append(join(img_path, img))
+        with open(join(self.img_path, "img_list.txt"), 'w') as f:
             f.write('\n'.join(imgs))
         print("Log:\tdone")
 
@@ -48,9 +50,9 @@ class BasicDataset(Dataset):
         if len(img.shape) == 3:
             h, w, c = img.shape
             if c == 4:
-                alpha = img[:, :, 3]
+                alpha = np.expand_dims(img[:, :, 3], -1) / 255
                 whit_bg = np.ones((h, w, 3)) * 255
-                img_res = img * alpha + whit_bg * (1 - alpha)
+                img_res = img[:, :, :3] * alpha + whit_bg * (1 - alpha)
                 if gray:
                     img_res = img_res.mean(axis = -1)
             else:
@@ -62,7 +64,7 @@ class BasicDataset(Dataset):
     def __len__(self):
         return self.length
 
-    def __getitem__(self, i):
+    def __getitem__(self, idx):
         '''
             alright, here we need to several things...
             1. resize each input image
@@ -72,7 +74,7 @@ class BasicDataset(Dataset):
             wait, or will? how about we also flip the label!
         '''
         # get image path
-        line_path = self.ids[i]
+        line_path = self.ids[idx].strip("\n")
         flat_path = line_path.replace("line", "flat")
         shad_path = line_path.replace("line", "shadow")
 
@@ -90,31 +92,56 @@ class BasicDataset(Dataset):
             f'No shadow found for the ID {idx}: {shad_path}'
         line_np = np.array(Image.open(line_path))
         flat_np = np.array(Image.open(flat_path))
-        shad_np = np.array(Image.open(shap_path))
+        shad_np = np.array(Image.open(shad_path))
         
         # merge line and flat
         flat_np = self.remove_alpha(flat_np)
-        line_th = cv2.adaptiveThreshold(line_np[:, :, 3] ,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
-            cv2.THRESH_BINARY,11,2)
-        line_mask = np.expand_dims(line_th == 0, axis = -1)
-        flat_np[line_mask] = 0
+        # maybe thershold is not a good idea here...
+        # line_th = cv2.adaptiveThreshold(255 - line_np[:, :, 3] ,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+        #     cv2.THRESH_BINARY,11,2)
+        # line_mask = np.expand_dims(line_th == 0, axis = -1)
+        # flat_np[np.repeat(line_mask, 3, -1)] = 0
+        flat_np = flat_np * (1 - np.expand_dims(line_np[:, :, 3], axis = -1) / 255)
         shad_np = self.remove_alpha(shad_np, gray = True)
+        # we need an additional thershold for this
+        _, shad_np = cv2.threshold(shad_np, 127, 255, cv2.THRESH_BINARY)
 
         # resize image, now we still have to down sample the input a little bit for a easy training
         h, w = shad_np.shape
         h, w = self.resize_hw(h, w)
         flat_np = cv2.resize(flat_np, (w, h), interpolation = cv2.INTER_AREA)
-        shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_AREA)
+        shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_NEAREST)
 
         # augment image, let's do this in numpy!
-        flat_np, shad_np, label = self.random_flip([flat_np, shad_np], label)
+        img_list, label = self.random_flip([flat_np, shad_np], label)
+        flat_np, shad_np = img_list
+        bbox = self.random_bbox(flat_np)
+        flat_np, shad_np = self.crop([flat_np, shad_np], bbox)
+        
+        # clip values
+        flat_np = flat_np.clip(0, 255)
+        shad_np = shad_np.clip(0, 255)
 
         # convert to tensor, and the following process should all be done by cuda
-        flat = self.to_tensor(flat_np)
+        flat = self.to_tensor(flat_np / 255)
         shad = self.to_tensor(1 - shad_np / 255, False) # this is label infact
-        
+        label = torch.Tensor([label])
         # it returns tensor at last
-        return flat, shad
+        return flat, shad, label
+
+    def random_bbox(self, img):
+        h, w, _ = img.shape
+        # we generate top, left, bottom, right
+        t = np.random.randint(0, h - self.crop_size - 1)
+        l = np.random.randint(0, w - self.crop_size - 1)
+        return (t, l, t + self.crop_size, l + self.crop_size)
+
+    def crop(self, imgs, bbox):
+        t, l, b, r = bbox
+        res = []
+        for img in imgs:
+            res.append(img[t:b, l:r])
+        return res
 
     def random_flip(self, imgs, label, p = 0.5):
         # we only consider the horizontal flip
@@ -130,7 +157,7 @@ class BasicDataset(Dataset):
             flipped = imgs
         return flipped, label
     
-    def resize_hw(h, w):
+    def resize_hw(self, h, w):
         # we resize the shorter edge to the target size
         if h > w:
             ratio =  h / w
@@ -142,12 +169,11 @@ class BasicDataset(Dataset):
             h = self.resize
         return h, w
 
-    def to_tensor(self, pil_img, normalize = True):
+    def to_tensor(self, img_np, normalize = True):
         # assume the input is always grayscal
         if normalize:
             transforms = T.Compose(
                     [
-                        # to tensor will change the channel order and divide 255 if necessary
                         T.ToTensor(),
                         T.Normalize(0.5, 0.5, inplace = True)
                     ]
@@ -155,8 +181,8 @@ class BasicDataset(Dataset):
         else:
             transforms = T.Compose(
                     [
-                        # to tensor will change the channel order and divide 255 if necessary
-                        T.ToTensor(),
+                        T.ToTensor()
                     ]
                 )
-        return transforms(pil_img)
+        return transforms(img_np)
+        
