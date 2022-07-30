@@ -37,13 +37,15 @@ def train_net(
               resize = 1024):
 
     # create dataloader
-    dataset = BasicDataset(img_path, crop_size = crop_size, resize = resize)
-    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True, drop_last=True)
+    dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize)
+    dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
+    val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
     # we don't need valiation currently
     # val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
 
     # get dataset lenght
-    n_train = len(dataset)
+    n_train = len(dataset_train)
     
     # display train summarys
     global_step = 0
@@ -65,6 +67,17 @@ def train_net(
     # the task is in fact a binary classification problem
     criterion = nn.BCEWithLogitsLoss()
     # criterion = nn.L1Loss()
+
+    # start logging
+    if args.log:
+        wandb.init(project = "ShadowMagic Ver 0.1", entity="waterheater")
+        wandb.config = {
+          "learning_rate": args.lr,
+          "epochs": epochs,
+          "batch_size": args.batchsize,
+          "crop_size": args.crop
+        }
+        wandb.watch(net, log_freq=30)
 
     # start training
     for epoch in range(epochs):
@@ -112,8 +125,9 @@ def train_net(
                 
                 global_step += 1
                 
-                if True:
-                # if global_step % 1000 == 0:
+                # if global_step % 1000 == 0 and args.log:
+                if True and args.log:
+                    
                     sample = torch.cat((denormalize(imgs), (pred > 0.5).repeat(1, 3, 1, 1), gts.repeat(1, 3, 1, 1)), dim = 0)
                     if os.path.exists("./results/train/") is False:
                         logging.info("Creating ./results/train/")
@@ -123,11 +137,36 @@ def train_net(
                         sample,
                         f"./results/train/{str(global_step).zfill(6)}.png",
                         nrow=int(batch_size),
-                        # nrow=int(sample.shape[0] ** 0.5),
                         normalize=True,
-                        range=(-1, 1),
+                        range=(0, 1),
                     )
+                    
+                    '''let's put the training result on the wandb '''
+                    if args.log:
+                        fig_res = wandb.Image(np.array(Image.open(f"./results/train/{str(global_step).zfill(6)}.png")))
+                        wandb.log({'Total Loss': loss.item()}) 
+                        wandb.log({'Train Result': fig_res})
 
+                    # let's also run a validation test
+                    logging.info('Starting Validation')
+                    net.eval()
+                    with torch.no_grad():
+                        # read validation samples
+                        for val_img, val_gt, label in val_loader:
+                            # predict
+                            val_img = val_img.to(device=device, dtype=torch.float32)
+                            val_gt = val_gt.to(device=device, dtype=torch.float32)
+                            label = label.to(device=device, dtype=torch.float32)
+                            val_pred = net(val_img, label)
+                            # save result
+                            val_img = tensor_to_img(denormalize(val_img))
+                            val_pred = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
+                            val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
+                            val_sample = np.concatenate((val_img, val_pred, val_gt), axis = 1)
+                            val_fig_res = wandb.Image(val_sample)
+                            wandb.log({"Val Result":val_fig_res})
+
+        # save model
         if save_cp and epoch % 100 == 0:
             try:
                 os.mkdir(dir_checkpoint)
@@ -138,7 +177,8 @@ def train_net(
                        dir_checkpoint + f'/CP_epoch{epoch + 1}.pth')
             logging.info(f'Checkpoint {epoch + 1} saved !')
 
-    writer.close()
+def tensor_to_img(t):
+    return (t.cpu().numpy().squeeze().transpose(1,2,0) * 255).astype(np.uint8)
 
 def get_args():
     parser = argparse.ArgumentParser(description='ShadowMagic Ver 0.1',
@@ -158,6 +198,7 @@ def get_args():
                         help='resize the shorter edge of the training image')
     parser.add_argument('-i', '--imgs', dest="imgs", type=str,
                         help='the path to training set')
+    parser.add_argument('--log', action="store_true", help='enable wandb log')
 
     return parser.parse_args()
 
@@ -189,31 +230,31 @@ if __name__ == '__main__':
     # faster convolutions, but more memory
     # cudnn.benchmark = True
 
-    # try:
-    #     train_net(net=net,
-    #               epochs=args.epochs,
-    #               batch_size=args.batchsize,
-    #               lr=args.lr,
-    #               device=device,
-    #               crop_size=args.crop_size)
+    try:
+        train_net(net=net,
+                  epochs=args.epochs,
+                  batch_size=args.batchsize,
+                  lr=args.lr,
+                  device=device,
+                  crop_size=args.crop_size)
 
-    # # this is interesting, save model when keyborad interrupt
-    # except KeyboardInterrupt:
-    #     torch.save(net.state_dict(), './checkpoints/INTERRUPTED.pth')
-    #     # logging.info('Saved interrupt')
-    #     try:
-    #         sys.exit(0)
-    #     except SystemExit:
-    #         os._exit(0)
+    # this is interesting, save model when keyborad interrupt
+    except KeyboardInterrupt:
+        torch.save(net.state_dict(), './checkpoints/INTERRUPTED.pth')
+        # logging.info('Saved interrupt')
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
 
     '''for debug'''
-    train_net(
-                img_path = args.imgs,
-                net = net,
-                epochs = args.epochs,
-                batch_size = args.batchsize,
-                lr = args.lr,
-                device = device,
-                crop_size = args.crop,
-                resize = args.resize
-            )
+    # train_net(
+    #             img_path = args.imgs,
+    #             net = net,
+    #             epochs = args.epochs,
+    #             batch_size = args.batchsize,
+    #             lr = args.lr,
+    #             device = device,
+    #             crop_size = args.crop,
+    #             resize = args.resize
+    #         )

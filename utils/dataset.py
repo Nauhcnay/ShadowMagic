@@ -14,6 +14,7 @@ class BasicDataset(Dataset):
     
     def __init__(self, img_path, crop_size = 256, resize = 1024, val = False):
         # we may need some validation result in the future
+        self.val = val
         self.img_path = img_path
         self.crop_size = crop_size
         # we won't resize the image now, let's see how it will works
@@ -23,6 +24,12 @@ class BasicDataset(Dataset):
             self.scan_imgs()
         with open(join(img_path, "img_list.txt"), 'r') as f:
             self.ids = f.readlines()
+        # split validation set, let's use 5% samples for validation
+        val_idx = int(len(self.ids) * 0.05)
+        if val:
+            self.ids = self.ids[val_idx:]
+        else:
+            self.ids = self.ids[:val_idx]
         self.length = len(self.ids)
         # set dirction dict, mapping text to float number
         self.to_dir_label = {"right": 0.25, "left":0.5, "back":0.75, "top":1.0}
@@ -112,11 +119,13 @@ class BasicDataset(Dataset):
         flat_np = cv2.resize(flat_np, (w, h), interpolation = cv2.INTER_AREA)
         shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_NEAREST)
 
-        # augment image, let's do this in numpy!
-        img_list, label = self.random_flip([flat_np, shad_np], label)
-        flat_np, shad_np = img_list
-        bbox = self.random_bbox(flat_np)
-        flat_np, shad_np = self.crop([flat_np, shad_np], bbox)
+        # we don't need image augmentation for val
+        if self.val == False:
+            # augment image, let's do this in numpy!
+            img_list, label = self.random_flip([flat_np, shad_np], label)
+            flat_np, shad_np = img_list
+            bbox = self.random_bbox(flat_np)
+            flat_np, shad_np = self.crop([flat_np, shad_np], bbox)
         
         # clip values
         flat_np = flat_np.clip(0, 255)
