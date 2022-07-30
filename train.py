@@ -231,12 +231,16 @@ if __name__ == '__main__':
     # cudnn.benchmark = True
 
     try:
-        train_net(net=net,
-                  epochs=args.epochs,
-                  batch_size=args.batchsize,
-                  lr=args.lr,
-                  device=device,
-                  crop_size=args.crop_size)
+        train_net(
+                    img_path = args.imgs,
+                    net = net,
+                    epochs = args.epochs,
+                    batch_size = args.batchsize,
+                    lr = args.lr,
+                    device = device,
+                    crop_size = args.crop,
+                    resize = args.resize
+                  )
 
     # this is interesting, save model when keyborad interrupt
     except KeyboardInterrupt:
