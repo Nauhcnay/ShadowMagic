@@ -125,8 +125,8 @@ def train_net(
                 
                 global_step += 1
                 
-                # if global_step % 1000 == 0 and args.log:
-                if True and args.log:
+                if global_step % 1000 == 0 and args.log:
+                # if True and args.log:
                     
                     sample = torch.cat((denormalize(imgs), (pred > 0.5).repeat(1, 3, 1, 1), gts.repeat(1, 3, 1, 1)), dim = 0)
                     if os.path.exists("./results/train/") is False:
@@ -169,12 +169,12 @@ def train_net(
         # save model
         if save_cp and epoch % 100 == 0:
             try:
-                os.mkdir(dir_checkpoint)
+                os.mkdir("checkpoint")
                 logging.info('Created checkpoint directory')
             except OSError:
                 pass
             torch.save(net.state_dict(),
-                       dir_checkpoint + f'/CP_epoch{epoch + 1}.pth')
+                       f'checkpoint/CP_epoch{epoch + 1}.pth')
             logging.info(f'Checkpoint {epoch + 1} saved !')
 
 def tensor_to_img(t):
