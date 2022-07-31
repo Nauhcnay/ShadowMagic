@@ -101,6 +101,10 @@ class BasicDataset(Dataset):
         flat_np = np.array(Image.open(flat_path))
         shad_np = np.array(Image.open(shad_path))
         
+        # create training mask
+        mask_np = flat_np[:, :, 3]
+        _, mask_np = cv2.threshold(mask_np.squeeze(), 127, 255, cv2.THRESH_BINARY)
+
         # merge line and flat
         flat_np = self.remove_alpha(flat_np)
         # maybe thershold is not a good idea here...
@@ -118,25 +122,28 @@ class BasicDataset(Dataset):
         h, w = self.resize_hw(h, w)
         flat_np = cv2.resize(flat_np, (w, h), interpolation = cv2.INTER_AREA)
         shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_NEAREST)
+        mask_np = cv2.resize(mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
 
         # we don't need image augmentation for val
         if self.val == False:
             # augment image, let's do this in numpy!
-            img_list, label = self.random_flip([flat_np, shad_np], label)
-            flat_np, shad_np = img_list
+            img_list, label = self.random_flip([flat_np, shad_np, mask_np], label)
+            flat_np, shad_np, mask_np = img_list
             bbox = self.random_bbox(flat_np)
-            flat_np, shad_np = self.crop([flat_np, shad_np], bbox)
+            flat_np, shad_np, mask_np = self.crop([flat_np, shad_np, mask_np], bbox)
         
         # clip values
         flat_np = flat_np.clip(0, 255)
         shad_np = shad_np.clip(0, 255)
+        mask_np = mask_np.clip(0, 255)
 
         # convert to tensor, and the following process should all be done by cuda
         flat = self.to_tensor(flat_np / 255)
         shad = self.to_tensor(1 - shad_np / 255, False) # this is label infact
+        mask = self.to_tensor(1 - mask_np / 255, False)
         label = torch.Tensor([label])
         # it returns tensor at last
-        return flat, shad, label
+        return flat, shad, mask, label
 
     def random_bbox(self, img):
         h, w, _ = img.shape
