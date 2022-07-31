@@ -53,7 +53,7 @@ For example, you can run:
 ```
 python train.py -i .\dataset
 ```
-to test if the code is work on your computer, this will start a training with batch size 1 by default.
+to test if the code works on your computer, this will start a training with batch size 1 by default.
 
 ## Misc tools
 Here also has a fake backend server (will always return the same result) for the system debug, to use the fake server, simply run:
