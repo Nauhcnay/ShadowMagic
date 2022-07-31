@@ -62,5 +62,9 @@ Todo: add command line here after the coding is finished
 ```
 And here is another tool that could gerenate the hint line layer from given flat layer png files and label json file. To use this function, include the file and call:
 ```
-Todo: add code exmaple after the coding is finished
+from utils.misc import to_hint_layer
+# flat, numpy array as flat layer image
+# label, json region label 
+# hint, numpy array as hint layer image
+hint = to_hint_layer(flat, label)
 ```
