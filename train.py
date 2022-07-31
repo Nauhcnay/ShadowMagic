@@ -108,8 +108,7 @@ def train_net(
                 
                 '''
                 weighted loss
-                yes, we care more true positive predictions than false positive, we probably need to apply a mask!
-                gts can be used as a mask, too
+                we only care the flat regions shadow, so we could ignore the false positive prediction at the background
                 '''
                 # loss of positive labels
                 loss1 = criterion(pred * mask, gts) 
@@ -117,7 +116,7 @@ def train_net(
                 loss2 = criterion(pred * (1 - mask), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
 
                 # total loss
-                loss = 10 * loss1 + 0.5 * loss2
+                loss = 10 * loss1 + 0.1 * loss2
 
                 # record loss
                 epoch_loss += loss.item()
