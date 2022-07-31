@@ -140,7 +140,7 @@ class BasicDataset(Dataset):
         # convert to tensor, and the following process should all be done by cuda
         flat = self.to_tensor(flat_np / 255)
         shad = self.to_tensor(1 - shad_np / 255, False) # this is label infact
-        mask = self.to_tensor(1 - mask_np / 255, False)
+        mask = self.to_tensor(mask_np / 255, False)
         label = torch.Tensor([label])
         # it returns tensor at last
         return flat, shad, mask, label

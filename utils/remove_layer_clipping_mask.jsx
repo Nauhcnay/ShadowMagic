@@ -1,4 +1,4 @@
-https://community.adobe.com/t5/photoshop-ecosystem-discussions/list-with-all-files-in-the-folder/td-p/10549286
+// https://community.adobe.com/t5/photoshop-ecosystem-discussions/list-with-all-files-in-the-folder/td-p/10549286
 main();
 
 function main(){
