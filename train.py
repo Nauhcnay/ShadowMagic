@@ -30,6 +30,7 @@ def train_net(
               img_path,
               net,
               device,
+              use_mask = True,
               epochs=999,
               batch_size=1,
               lr=0.001,
@@ -41,7 +42,7 @@ def train_net(
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize)
     dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True)
-    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=False)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True, drop_last=False)
     val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
     # we don't need valiation currently
     # val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
@@ -77,7 +78,8 @@ def train_net(
           "learning_rate": lr,
           "epochs": epochs, 
           "batch_size": batch_size,
-          "crop_size": crop_size
+          "crop_size": crop_size,
+          "use_mask":use_mask
         }
         wandb.watch(net, log_freq=30)
 
@@ -101,22 +103,24 @@ def train_net(
                 # forward
                 pred = net(imgs, label)
                 
-                # '''
-                # baseline
-                # '''
-                # loss1 = criterion(pred, gts)
+                if use_mask == False:
+                    # '''
+                    # baseline
+                    # '''
+                    loss = criterion(pred, gts)
                 
-                '''
-                weighted loss
-                we only care the flat regions shadow, so we could ignore the false positive prediction at the background
-                '''
-                # loss of positive labels
-                loss1 = criterion(pred * mask, gts) 
-                # loss of negative labels
-                loss2 = criterion(pred * (1 - mask), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
+                else:
+                    '''
+                    weighted loss
+                    we only care the flat regions shadow, so we could ignore the false positive prediction at the background
+                    '''
+                    # loss of positive labels
+                    loss1 = criterion(pred * mask, gts) 
+                    # loss of negative labels
+                    loss2 = criterion(pred * (1 - mask), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
 
-                # total loss
-                loss = 10 * loss1 + 0.1 * loss2
+                    # total loss
+                    loss = 10 * loss1 + 0.1 * loss2
 
                 # record loss
                 epoch_loss += loss.item()
@@ -139,8 +143,12 @@ def train_net(
                 # record the image output 
                 # if True:
                 if global_step % 200 == 0:
-                    sample = torch.cat((denormalize(imgs), mask.repeat(1, 3, 1, 1), 
-                        (pred > 0.8).repeat(1, 3, 1, 1), gts.repeat(1, 3, 1, 1)), dim = 0)
+                    if use_mask:
+                        sample = torch.cat((denormalize(imgs), mask.repeat(1, 3, 1, 1), 
+                            (pred > 0.8).repeat(1, 3, 1, 1), gts.repeat(1, 3, 1, 1)), dim = 0)
+                    else:
+                        sample = torch.cat((denormalize(imgs), 
+                            (pred > 0.8).repeat(1, 3, 1, 1), gts.repeat(1, 3, 1, 1)), dim = 0)
                     result_folder = os.path.join("./results/train/", dt_formatted)
                     if os.path.exists(result_folder) is False:
                         logging.info("Creating %s"%str(result_folder))
@@ -170,15 +178,18 @@ def train_net(
                                 # predict
                                 val_img = val_img.to(device=device, dtype=torch.float32)
                                 val_gt = val_gt.to(device=device, dtype=torch.float32)
-                                val_mask = val_mask.to(device=device, dtype=torch.float32)
                                 label = label.to(device=device, dtype=torch.float32)
                                 val_pred = net(val_img, label)
                                 # save result
                                 val_img = tensor_to_img(denormalize(val_img))
                                 val_pred = tensor_to_img((val_pred > 0.8).repeat(1, 3, 1, 1))
-                                val_mask = tensor_to_img(val_mask.repeat(1, 3, 1, 1))
                                 val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
-                                val_sample = np.concatenate((val_img, val_mask, val_pred, val_gt), axis = 1)
+                                if use_mask:
+                                    val_mask = val_mask.to(device=device, dtype=torch.float32)
+                                    val_mask = tensor_to_img(val_mask.repeat(1, 3, 1, 1))
+                                    val_sample = np.concatenate((val_img, val_mask, val_pred, val_gt), axis = 1)
+                                else:
+                                    val_sample = np.concatenate((val_img, val_pred, val_gt), axis = 1)
                                 val_fig_res = wandb.Image(val_sample)
                                 wandb.log({"Val Result":val_fig_res})
         # save model
@@ -198,6 +209,8 @@ def get_args():
     parser.add_argument('-e', '--epochs', metavar='E', type=int, default=90000,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-m', '--multi-gpu', action='store_true')
+    parser.add_argument('-w', '--weighted-loss', action='store_true', dest="mask",
+                        help="use mask to weight the loss computation")
     parser.add_argument('-c', '--crop-size', metavar='C', type=int, default=512,
                         help='the size of random cropping', dest="crop")
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=1,
@@ -251,7 +264,8 @@ if __name__ == '__main__':
                     lr = args.lr,
                     device = device,
                     crop_size = args.crop,
-                    resize = args.resize
+                    resize = args.resize,
+                    use_mask = args.mask
                   )
 
     # this is interesting, save model when keyborad interrupt
