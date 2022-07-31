@@ -1,6 +1,7 @@
 ## Prerequisite
 
 ```
+aiohttp
 pytorch
 numpy
 pillow
@@ -58,7 +59,8 @@ to test if the code works on your computer, this will start a training with batc
 ## Misc tools
 Here also has a fake backend server (will always return the same result) for the system debug, to use the fake server, simply run:
 ```
-Todo: add command line here after the coding is finished
+cd utils
+python fake_backend.py
 ```
 And here is another tool that could gerenate the hint line layer from given flat layer png files and label json file. To use this function, include the file then call the function:
 ```
