@@ -43,7 +43,7 @@ def train_net(
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize)
     dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True)
     train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True, drop_last=False)
-    val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
+    val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=True)
     # we don't need valiation currently
     # val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
 
@@ -121,7 +121,7 @@ def train_net(
                     loss2 = criterion(pred * (1 - mask), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
 
                     # total loss
-                    loss = 10 * loss1 + 0.1 * loss2
+                    loss = 5 * loss1 + 0.1 * loss2
 
                 # record loss
                 epoch_loss += loss.item()
@@ -146,10 +146,12 @@ def train_net(
                 if global_step % 200 == 0:
                     if use_mask:
                         sample = torch.cat((denormalize(imgs), mask.repeat(1, 3, 1, 1), 
-                            (pred > 0.8).repeat(1, 3, 1, 1), gts.repeat(1, 3, 1, 1)), dim = 0)
+                            (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
+                            gts.repeat(1, 3, 1, 1)), dim = 0)
                     else:
                         sample = torch.cat((denormalize(imgs), 
-                            (pred > 0.8).repeat(1, 3, 1, 1), gts.repeat(1, 3, 1, 1)), dim = 0)
+                            (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
+                            gts.repeat(1, 3, 1, 1)), dim = 0)
                     result_folder = os.path.join("./results/train/", dt_formatted)
                     if os.path.exists(result_folder) is False:
                         logging.info("Creating %s"%str(result_folder))
@@ -183,14 +185,15 @@ def train_net(
                                 val_pred = net(val_img, label)
                                 # save result
                                 val_img = tensor_to_img(denormalize(val_img))
-                                val_pred = tensor_to_img((val_pred > 0.8).repeat(1, 3, 1, 1))
+                                val_pred_1 = tensor_to_img((val_pred > 0.8).repeat(1, 3, 1, 1))
+                                val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
                                 val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
                                 if use_mask:
                                     val_mask = val_mask.to(device=device, dtype=torch.float32)
                                     val_mask = tensor_to_img(val_mask.repeat(1, 3, 1, 1))
-                                    val_sample = np.concatenate((val_img, val_mask, val_pred, val_gt), axis = 1)
+                                    val_sample = np.concatenate((val_img, val_mask, val_pred_1, val_pred_2, val_gt), axis = 1)
                                 else:
-                                    val_sample = np.concatenate((val_img, val_pred, val_gt), axis = 1)
+                                    val_sample = np.concatenate((val_img, val_pred_1, val_pred_2, val_gt), axis = 1)
                                 val_fig_res = wandb.Image(val_sample)
                                 wandb.log({"Val Result":val_fig_res})
         # save model
