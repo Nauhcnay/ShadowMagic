@@ -133,7 +133,7 @@ def train_net(
                 global_step += 1
                 
                 # record the loss more frequently
-                if global_step % 50 == 0 and args.log:
+                if global_step % 10 == 0 and args.log:
                     wandb.log({'Total Loss': loss.item()}) 
 
                 # record the image output 
@@ -186,7 +186,7 @@ def train_net(
             # save trying result in single folder each time
             logging.info('Created checkpoint directory')
             torch.save(net.state_dict(),
-                      join(model_folder, f"CP_epoch{epoch + 1}.pth"))
+                      os.path.join(model_folder, f"CP_epoch{epoch + 1}.pth"))
             logging.info(f'Checkpoint {epoch + 1} saved !')
 
 def tensor_to_img(t):
