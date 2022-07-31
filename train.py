@@ -60,6 +60,7 @@ def train_net(
         Checkpoints:     {save_cp}
         Device:          {device.type}
         Crop size:       {crop_size}
+        Use Mask:        {use_mask}
     ''')
 
     # not sure which optimizer will be better
