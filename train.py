@@ -120,6 +120,12 @@ def train_net(
                     # loss of negative labels
                     loss2 = criterion(pred * (1 - mask), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
 
+                    '''mask ver1 use gt as mask'''
+                    # # loss of positive labels
+                    # loss1 = criterion(pred * gts, gts) 
+                    # # loss of negative labels
+                    # loss2 = criterion(pred * (1 - gts), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
+
                     # total loss
                     loss = 5 * loss1 + 0.1 * loss2
 

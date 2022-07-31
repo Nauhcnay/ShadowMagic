@@ -1,0 +1,100 @@
+[
+{
+  "file": "0004_back_flat",
+  "hair": ["#444647","#b6bbbe"],
+  "face": ["#f5ccbd", "#ffffff", "#444647"],
+  "hand": ["#f5ccbd"],
+  "cloth": ["#6c514e", "#f7efe9","#3d3532"]
+},
+{
+  "file": "0009_right_flat",
+  "hair": ["#977381"],
+  "face": ["#ffe8d8", "#977381", "#d3998d"],
+  "hand": ["#ffe8d8"],
+  "cloth": ["#343d68", "#ffffff","#e08995"]
+},
+{
+  "file": "0012_back_flat",
+  "hair": ["#bd8384"],
+  "face": ["#ffe8d8", "#bd8384", "#d3998d"],
+  "hand": ["#ffe8d8"],
+  "cloth": ["#c0b398", "#ffffff","#988684","#d3998d"]
+},
+{
+  "file": "0019_top_flat",
+  "hair": ["#3c3947","#5a687e"],
+  "face": ["#ffe8d8", "#ffe3d0", "#ffffff"],
+  "hand": ["#ffe8d8","#ffe3d0"],
+  "cloth": ["#e4d0c1", "#363636","#7a7373","#ffffff","#8b98c4","#616573"]
+},
+{
+  "file": "0032_back_flat",
+  "hair": ["#bc8283"],
+  "face": ["#ffe8d8", "#bc8283", "#ffffff"],
+  "hand": ["#ffe8d8"],
+  "cloth": ["#d8c0b4", "#fbf6f2","#414141"]
+},
+{
+  "file": "0045_right_flat",
+  "hair": ["#313236"],
+  "face": ["#f7e6d5", "#313236", "#41466a","#ffffff"],
+  "hand": [],
+  "cloth": ["#313236", "#411c2a","#ebb86d","#99343d","#ffffff"]
+},
+{
+  "file": "0056_back_flat",
+  "hair": ["#eabbb9","#745859"],
+  "face": ["#fff2f0", "#fff6ee"],
+  "hand": ["#fff2f0"],
+  "cloth": ["#fce0b8", "#ffc374","#c73a56","#414148","#e6e4e5"]
+},
+{
+  "file": "0061_right_flat",
+  "hair": ["#3f4049"],
+  "face": ["#f8e7d6", "#ffffff", "#3f4049"],
+  "hand": ["#f8e7d6"],
+  "cloth": ["#7c334b", "#453c44","#dfd3c4"]
+},
+{
+  "file": "0067_top_flat",
+  "hair": ["#41425a","#2e353c"],
+  "face": ["#fcefe6", "#41425a"],
+  "hand": [],
+  "cloth": ["#5a4f5f", "#383139","#802732","#f1c349","#cdb061"]
+},
+{
+  "file": "0075_top_flat",
+  "hair": ["#41425a","#c4b89e"],
+  "face": ["#fcefe6", "#41425a"],
+  "hand": ["#fcefe6"],
+  "cloth": ["#f0ebe7", "#fcefe6","#e9f4f9"]
+},
+{
+  "file": "0177_left_flat",
+  "hair": ["#bc8c82","#637dda"],
+  "face": ["#fcefe6", "#637dda","#ffffff","#d55959","#bc8c82"],
+  "hand": [],
+  "cloth": ["#f0ebe7", "#131623"]
+},
+{
+  "file": "0183_left_flat",
+  "hair": ["#424162"],
+  "face": ["#fff5f1", "#88d0fe","#ffffff","#d55959","#424162"],
+  "hand": ["#fff5f1"],
+  "cloth": ["#383aa1", "#f8f9ff"]
+},
+{
+  "file": "0216_right_flat",
+  "hair": ["#bc8c82"],
+  "face": ["#fcefe6", "#637dda","#ffffff","#d55959"],
+  "hand": ["#fcefe6"],
+  "cloth": ["#131623", "#f0ebe7"]
+},
+{
+  "file": "0228_right_flat",
+  "hair": ["#e0e5ef"],
+  "face": ["#fbddd0", "#774d8a","#ffffff"],
+  "hand": ["#fbddd0"],
+  "cloth": ["#596a9c", "#f8f9ff"]
+}
+]
