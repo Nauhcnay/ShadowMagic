@@ -162,14 +162,11 @@ def train_net(
                 # record the image output 
                 # if True:
                 if global_step % 350 == 0:
-                    if use_mask:
-                        sample = torch.cat((denormalize(imgs),
-                            (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
-                            gts.repeat(1, 3, 1, 1)), dim = 0)
-                    else:
-                        sample = torch.cat((denormalize(imgs), 
-                            (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
-                            gts.repeat(1, 3, 1, 1)), dim = 0)
+                    imgs = denormalize(imgs)
+                    pred = denormalize(pred)
+                    sample = torch.cat((imgs,  pred.repeat(1, 3, 1, 1),
+                        (pred > 0.9).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
+                        gts.repeat(1, 3, 1, 1)), dim = 0)
                     result_folder = os.path.join("./results/train/", dt_formatted)
                     if os.path.exists(result_folder) is False:
                         logging.info("Creating %s"%str(result_folder))
@@ -203,13 +200,12 @@ def train_net(
                                 val_pred = net(val_img, label)
                                 # save result
                                 val_img = tensor_to_img(denormalize(val_img))
-                                val_pred_1 = tensor_to_img((val_pred > 0.8).repeat(1, 3, 1, 1))
+                                val_pred = denormalize(val_pred)
+                                val_pred_1 = tensor_to_img((val_pred > 0.9).repeat(1, 3, 1, 1))
                                 val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
+                                val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
                                 val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
-                                if use_mask:
-                                    val_sample = np.concatenate((val_img, val_pred_1, val_pred_2, val_gt), axis = 1)
-                                else:
-                                    val_sample = np.concatenate((val_img, val_pred_1, val_pred_2, val_gt), axis = 1)
+                                val_sample = np.concatenate((val_img, val_pred, val_pred_1, val_pred_2, val_gt), axis = 1)
                                 val_fig_res = wandb.Image(val_sample)
                                 wandb.log({"Val Result":val_fig_res})
         # save model
