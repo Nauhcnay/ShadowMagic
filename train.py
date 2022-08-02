@@ -115,11 +115,14 @@ def train_net(
                     weighted loss
                     we only care the flat regions shadow, so we could ignore the false positive prediction at the background
                     '''
-                    # loss of positive labels
-                    loss1 = criterion(pred * mask, gts) 
-                    # loss of negative labels
-                    loss2 = criterion(pred * (1 - mask), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
-
+                    mask1 = mask * (1 - gts) # inside flat mask but not inside gts
+                    mask2 = gts
+                    # loss of negative labels outside flat mask
+                    loss1 = criterion(pred * (1 - mask), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
+                    # loss of negative labels inside flat mask but outside gts
+                    loss2 = criterion(pred * mask1, torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
+                    # loss of postive labels only
+                    loss3 = criterion(pred * mask2, gts) 
                     '''mask ver1 use gt as mask'''
                     # # loss of positive labels
                     # loss1 = criterion(pred * gts, gts) 
@@ -127,7 +130,7 @@ def train_net(
                     # loss2 = criterion(pred * (1 - gts), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
 
                     # total loss
-                    loss = 5 * loss1 + 0.1 * loss2
+                    loss = 0.01 * loss1 + 0.5 * loss2 + 5 * loss3
 
                 # record loss
                 epoch_loss += loss.item()
@@ -144,12 +147,15 @@ def train_net(
                 global_step += 1
                 
                 # record the loss more frequently
-                if global_step % 10 == 0 and args.log:
+                if global_step % 20 == 0 and args.log:
                     wandb.log({'Total Loss': loss.item()}) 
+                    wandb.log({'Loss neg labels outside flat mask': loss1.item()}) 
+                    wandb.log({'Loss neg labels outside GT': loss2.item()}) 
+                    wandb.log({'Loss pos labels inside GT': loss3.item()}) 
 
                 # record the image output 
                 # if True:
-                if global_step % 200 == 0:
+                if global_step % 350 == 0:
                     if use_mask:
                         sample = torch.cat((denormalize(imgs), mask.repeat(1, 3, 1, 1), 
                             (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
