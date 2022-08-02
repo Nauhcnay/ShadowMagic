@@ -24,7 +24,6 @@ from PIL import Image
 def denormalize(img):
     # denormalize
     return (img / 2 + 0.5).clamp(0, 1)
-    return img_np
 
 def train_net(
               img_path,
@@ -109,13 +108,13 @@ def train_net(
 
                 # forward
                 pred = net(imgs, label)
-                
+                # we will need always denormalize the output
+                pred = denormalize(pred)
                 if use_mask == False:
                     # '''
                     # baseline
                     # '''
                     loss = criterion(pred, gts)
-                
                 else:
                     '''
                     weighted loss
@@ -163,7 +162,6 @@ def train_net(
                 # if True:
                 if global_step % 350 == 0:
                     imgs = denormalize(imgs)
-                    pred = denormalize(pred)
                     sample = torch.cat((imgs,  pred.repeat(1, 3, 1, 1),
                         (pred > 0.9).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
                         gts.repeat(1, 3, 1, 1)), dim = 0)
@@ -200,7 +198,6 @@ def train_net(
                                 val_pred = net(val_img, label)
                                 # save result
                                 val_img = tensor_to_img(denormalize(val_img))
-                                val_pred = denormalize(val_pred)
                                 val_pred_1 = tensor_to_img((val_pred > 0.9).repeat(1, 3, 1, 1))
                                 val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
                                 val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
