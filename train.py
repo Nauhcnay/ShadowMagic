@@ -37,7 +37,8 @@ def train_net(
               val_percent=0.1,
               save_cp=True,
               crop_size = 256,
-              resize = 1024):
+              resize = 1024,
+              l1_loss = False):
 
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize)
@@ -61,6 +62,7 @@ def train_net(
         Device:          {device.type}
         Crop size:       {crop_size}
         Use Mask:        {use_mask}
+        Loss:            {"L1" if l1_loss else "BCE"}
     ''')
 
     # not sure which optimizer will be better
@@ -69,8 +71,11 @@ def train_net(
     
     # create the loss function
     # the task is in fact a binary classification problem
-    # criterion = nn.BCEWithLogitsLoss()
-    criterion = nn.L1Loss()
+    if l1_loss:
+        criterion = nn.L1Loss()
+    else:
+        criterion = nn.BCEWithLogitsLoss()
+    
 
     # start logging
     if args.log:
@@ -80,7 +85,8 @@ def train_net(
           "epochs": epochs, 
           "batch_size": batch_size,
           "crop_size": crop_size,
-          "use_mask":use_mask
+          "use_mask":use_mask,
+          "loss":"L1" if l1_loss else "BCE"
         }
         wandb.watch(net, log_freq=30)
 
@@ -157,12 +163,9 @@ def train_net(
                 # if True:
                 if global_step % 350 == 0:
                     if use_mask:
-                        sample = torch.cat((denormalize(imgs), mask.repeat(1, 3, 1, 1), 
+                        sample = torch.cat((denormalize(imgs),
                             (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
                             gts.repeat(1, 3, 1, 1)), dim = 0)
-                        # sample = torch.cat((imgs, 
-                        #     (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
-                        #     gts.repeat(1, 3, 1, 1)), dim = 0)
                     else:
                         sample = torch.cat((denormalize(imgs), 
                             (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
@@ -200,13 +203,10 @@ def train_net(
                                 val_pred = net(val_img, label)
                                 # save result
                                 val_img = tensor_to_img(denormalize(val_img))
-                                # val_img = tensor_to_img(val_img)
                                 val_pred_1 = tensor_to_img((val_pred > 0.8).repeat(1, 3, 1, 1))
                                 val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
                                 val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
                                 if use_mask:
-                                    # val_mask = val_mask.to(device=device, dtype=torch.float32)
-                                    # val_mask = tensor_to_img(val_mask.repeat(1, 3, 1, 1))
                                     val_sample = np.concatenate((val_img, val_pred_1, val_pred_2, val_gt), axis = 1)
                                 else:
                                     val_sample = np.concatenate((val_img, val_pred_1, val_pred_2, val_gt), axis = 1)
@@ -244,6 +244,7 @@ def get_args():
     parser.add_argument('-i', '--imgs', dest="imgs", type=str,
                         help='the path to training set')
     parser.add_argument('--log', action="store_true", help='enable wandb log')
+    parser.add_argument('--l1', action="store_true", help='use L1 loss instead of BCE loss')
 
     return parser.parse_args()
 
@@ -259,7 +260,7 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logging.info(f'Using device {device}')
 
-    net = UNet(in_channels=3, out_channels=1, bilinear=True)
+    net = UNet(in_channels=3, out_channels=1, bilinear=True, l1=args.l1)
     
     if args.multi_gpu:
         logging.info("using data parallel")
@@ -286,7 +287,8 @@ if __name__ == '__main__':
                     device = device,
                     crop_size = args.crop,
                     resize = args.resize,
-                    use_mask = args.mask
+                    use_mask = args.mask,
+                    l1_loss = args.l1
                   )
 
     # this is interesting, save model when keyborad interrupt
