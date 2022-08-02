@@ -2,3 +2,4 @@ dataset
 wandb
 results
 *.pyc
+checkpoints
