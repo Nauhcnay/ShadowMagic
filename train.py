@@ -69,8 +69,8 @@ def train_net(
     
     # create the loss function
     # the task is in fact a binary classification problem
-    criterion = nn.BCEWithLogitsLoss()
-    # criterion = nn.L1Loss()
+    # criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.L1Loss()
 
     # start logging
     if args.log:
@@ -157,12 +157,12 @@ def train_net(
                 # if True:
                 if global_step % 350 == 0:
                     if use_mask:
-                        # sample = torch.cat((denormalize(imgs), mask.repeat(1, 3, 1, 1), 
-                        #     (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
-                        #     gts.repeat(1, 3, 1, 1)), dim = 0)
-                        sample = torch.cat((imgs, 
+                        sample = torch.cat((denormalize(imgs), mask.repeat(1, 3, 1, 1), 
                             (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
                             gts.repeat(1, 3, 1, 1)), dim = 0)
+                        # sample = torch.cat((imgs, 
+                        #     (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
+                        #     gts.repeat(1, 3, 1, 1)), dim = 0)
                     else:
                         sample = torch.cat((denormalize(imgs), 
                             (pred > 0.8).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
@@ -199,8 +199,8 @@ def train_net(
                                 label = label.to(device=device, dtype=torch.float32)
                                 val_pred = net(val_img, label)
                                 # save result
-                                # val_img = tensor_to_img(denormalize(val_img))
-                                val_img = tensor_to_img(val_img)
+                                val_img = tensor_to_img(denormalize(val_img))
+                                # val_img = tensor_to_img(val_img)
                                 val_pred_1 = tensor_to_img((val_pred > 0.8).repeat(1, 3, 1, 1))
                                 val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
                                 val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))

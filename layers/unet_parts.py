@@ -106,7 +106,7 @@ class OutConv(nn.Module):
         super(OutConv, self).__init__()
         self.conv = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size=1),
-                nn.Sigmoid()
+                # nn.Sigmoid()
                 )
         
 
