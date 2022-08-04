@@ -181,7 +181,7 @@ def train_net(
                 # record the loss more frequently
                 if global_step % 20 == 0 and args.log:
                     wandb.log({'Total Loss': loss.item()}) 
-                    if mask1_flag:
+                    if mask1_flag or mask2_flag:
                         wandb.log({'Loss outside flat/gt mask': loss1.item()}) 
                         wandb.log({'Loss inside flat/flat only/gt mask)': loss2.item()}) 
                         wandb.log({'Loss inside gt mask (if loss3 is none zero)': loss3.item()}) 
