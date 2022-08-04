@@ -29,7 +29,7 @@ def train_net(
               img_path,
               net,
               device,
-              use_mask = True,
+              use_mask = [True, False],
               epochs=999,
               batch_size=1,
               lr=0.001,
@@ -52,6 +52,17 @@ def train_net(
     
     # display train summarys
     global_step = 0
+    
+    mask1_flag, mask2_flag = use_mask
+    if mask1_flag and mask2_flag == False:
+        mask_str = "Type1"
+    elif mask1_flag == False and mask2_flag:
+        mask_str = "Type2"
+    elif mask1_flag and mask2_flag:
+        mask_str = "Both types"
+    else:
+        mask_str = False
+
     logging.info(f'''Starting training:
         Epochs:          {epochs}
         Batch size:      {batch_size}
@@ -60,7 +71,7 @@ def train_net(
         Checkpoints:     {save_cp}
         Device:          {device.type}
         Crop size:       {crop_size}
-        Use Mask:        {use_mask}
+        Use Mask:        {mask_str}
         Loss:            {"L1" if l1_loss else "BCE"}
     ''')
 
@@ -75,7 +86,7 @@ def train_net(
     else:
         criterion = nn.BCEWithLogitsLoss()
     
-
+    
     # start logging
     if args.log:
         wandb.init(project = "ShadowMagic Ver 0.1", entity="waterheater")
@@ -110,7 +121,7 @@ def train_net(
                 pred = net(imgs, label)
                 # we will need always denormalize the output
                 pred = denormalize(pred)
-                if use_mask == False:
+                if mask1_flag == False and mask2_flag == False:
                     # '''
                     # baseline
                     # '''
@@ -120,23 +131,38 @@ def train_net(
                     weighted loss
                     we only care the flat regions shadow, so we could ignore the false positive prediction at the background
                     '''
-                    mask1 = mask
-                    mask2 = gts
-
-                    # loss of negative labels outside flat mask
-                    loss1 = criterion(pred * (1 - mask1), gts * (1 - mask1)) 
-                    
-                    # loss of negative labels inside flat mask
-                    loss2 = criterion(pred * mask1, gts * mask1) 
-                    
-                    '''mask ver1 use gt as mask'''
-                    # # loss of positive labels
-                    # loss1 = criterion(pred * gts, gts) 
-                    # # loss of negative labels
-                    # loss2 = criterion(pred * (1 - gts), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
-
+                    if mask1_flag and mask2_flag == False:
+                        mask1 = mask
+                        # loss of labels outside flat mask
+                        loss1 = criterion(pred * (1 - mask1), gts * (1 - mask1)) 
+                        # loss of labels inside flat mask
+                        loss2 = criterion(pred * mask1, gts * mask1)
+                        loss3 = 0
+                    if mask2_flag and mask1_flag == False:
+                        if l1_loss:
+                            mask2 = denormalize(gts)
+                        else:
+                            mask2 = gts
+                        # loss that outside gt mask
+                        loss1 = criterion(pred * (1 - mask2), gts * (1 - mask2)) 
+                        # loss that inside of gt mask
+                        loss2 = criterion(pred * mask2, gts * mask2)
+                        loss3 = 0
+                    if mask1_flag and mask2_flag:
+                        mask1 = mask
+                        if l1_loss:
+                            mask2 = denormalize(gts)
+                        else:
+                            mask2 = gts
+                        mask3 = mask1 * (1 - mask2)
+                        # loss that outside the flat mask
+                        loss1 = criterion(pred * (1 - mask1), gts * (1 - mask1)) 
+                        # loss that inside gt mask
+                        loss2 = criterion(pred * mask2, gts * mask2)
+                        # loss that inside flat mask and negtive label of gt mask
+                        loss3 = criterion(pred * mask3, gts * mask3)
                     # total loss
-                    loss = 0.5 * loss1 + 1.5 * loss2
+                    loss = 0.5 * loss1 + loss2 + 1.5 * loss3
 
                 # record loss
                 epoch_loss += loss.item()
@@ -155,8 +181,10 @@ def train_net(
                 # record the loss more frequently
                 if global_step % 20 == 0 and args.log:
                     wandb.log({'Total Loss': loss.item()}) 
-                    wandb.log({'Loss neg labels outside flat mask': loss1.item()}) 
-                    wandb.log({'Loss neg labels outside GT': loss2.item()}) 
+                    if mask1_flag:
+                        wandb.log({'Loss outside flat/gt mask': loss1.item()}) 
+                        wandb.log({'Loss inside flat/flat only/gt mask)': loss2.item()}) 
+                        wandb.log({'Loss inside gt mask (if loss3 is none zero)': loss3.item()}) 
                     # wandb.log({'Loss pos labels inside GT': loss3.item()}) 
 
                 # record the image output 
@@ -227,8 +255,10 @@ def get_args():
     parser.add_argument('-e', '--epochs', metavar='E', type=int, default=90000,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-m', '--multi-gpu', action='store_true')
-    parser.add_argument('-w', '--weighted-loss', action='store_true', dest="mask",
-                        help="use mask to weight the loss computation")
+    parser.add_argument('-w1', '--weighted-loss1', action='store_true', dest="mask1",
+                        help="use mask type 1 to weight the loss computation")
+    parser.add_argument('-w2', '--weighted-loss2', action='store_true', dest="mask2",
+                        help="use mask type 2 to weight the loss computation")
     parser.add_argument('-c', '--crop-size', metavar='C', type=int, default=512,
                         help='the size of random cropping', dest="crop")
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=1,
@@ -285,7 +315,7 @@ if __name__ == '__main__':
                     device = device,
                     crop_size = args.crop,
                     resize = args.resize,
-                    use_mask = args.mask,
+                    use_mask = [args.mask1, args.mask2],
                     l1_loss = args.l1
                   )
 
