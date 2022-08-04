@@ -105,11 +105,11 @@ class OutConv(nn.Module):
     def __init__(self, in_channels, out_channels, l1 = False):
         super(OutConv, self).__init__()
         if l1:
-            self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+            self.conv = nn.Conv2d(in_channels, out_channels, kernel_size = 1)
         else:
             self.conv = nn.Sequential(
-                    nn.Conv2d(in_channels, out_channels, kernel_size=1),
-                    nn.Tanh() # let's try Tanh instead of sigmoid!
+                    nn.Conv2d(in_channels, out_channels, kernel_size = 1),
+                    # nn.Tanh() # let's try Tanh instead of sigmoid!
                     )
     def forward(self, x):
         return self.conv(x)

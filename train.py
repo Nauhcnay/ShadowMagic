@@ -120,14 +120,15 @@ def train_net(
                     weighted loss
                     we only care the flat regions shadow, so we could ignore the false positive prediction at the background
                     '''
-                    mask1 = mask * (1 - gts) # inside flat mask but not inside gts
+                    mask1 = mask
                     mask2 = gts
+
                     # loss of negative labels outside flat mask
-                    loss1 = criterion(pred * (1 - mask), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
+                    loss1 = criterion(pred * (1 - mask1), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
+                    
                     # loss of negative labels inside flat mask but outside gts
-                    loss2 = criterion(pred * mask1, torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
-                    # loss of postive labels only
-                    loss3 = criterion(pred * mask2, gts) 
+                    loss2 = criterion(pred * mask1, gts) 
+                    
                     '''mask ver1 use gt as mask'''
                     # # loss of positive labels
                     # loss1 = criterion(pred * gts, gts) 
@@ -135,7 +136,7 @@ def train_net(
                     # loss2 = criterion(pred * (1 - gts), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
 
                     # total loss
-                    loss = 0.01 * loss1 + 0.5 * loss2 + 5 * loss3
+                    loss = 0.5 * loss1 + 1.5 * loss2
 
                 # record loss
                 epoch_loss += loss.item()
