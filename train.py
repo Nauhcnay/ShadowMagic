@@ -40,8 +40,8 @@ def train_net(
               l1_loss = False):
 
     # create dataloader
-    dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize)
-    dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True)
+    dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
+    dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True, l1_loss = l1_loss)
     train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True, drop_last=False)
     val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=True)
     # we don't need valiation currently
@@ -124,10 +124,10 @@ def train_net(
                     mask2 = gts
 
                     # loss of negative labels outside flat mask
-                    loss1 = criterion(pred * (1 - mask1), torch.zeros(gts.shape).to(device=device, dtype=torch.float32)) 
+                    loss1 = criterion(pred * (1 - mask1), gts * (1 - mask1)) 
                     
-                    # loss of negative labels inside flat mask but outside gts
-                    loss2 = criterion(pred * mask1, gts) 
+                    # loss of negative labels inside flat mask
+                    loss2 = criterion(pred * mask1, gts * mask1) 
                     
                     '''mask ver1 use gt as mask'''
                     # # loss of positive labels
@@ -157,12 +157,14 @@ def train_net(
                     wandb.log({'Total Loss': loss.item()}) 
                     wandb.log({'Loss neg labels outside flat mask': loss1.item()}) 
                     wandb.log({'Loss neg labels outside GT': loss2.item()}) 
-                    wandb.log({'Loss pos labels inside GT': loss3.item()}) 
+                    # wandb.log({'Loss pos labels inside GT': loss3.item()}) 
 
                 # record the image output 
                 # if True:
                 if global_step % 350 == 0:
                     imgs = denormalize(imgs)
+                    if l1_loss:
+                        gts = denormalize(gts)
                     sample = torch.cat((imgs,  pred.repeat(1, 3, 1, 1),
                         (pred > 0.9).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
                         gts.repeat(1, 3, 1, 1)), dim = 0)
@@ -197,6 +199,8 @@ def train_net(
                                 val_gt = val_gt.to(device=device, dtype=torch.float32)
                                 label = label.to(device=device, dtype=torch.float32)
                                 val_pred = net(val_img, label)
+                                if l1_loss:
+                                    val_gt = denormalize(val_gt)
                                 # save result
                                 val_img = tensor_to_img(denormalize(val_img))
                                 val_pred_1 = tensor_to_img((val_pred > 0.9).repeat(1, 3, 1, 1))

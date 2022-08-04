@@ -12,11 +12,12 @@ from torchvision import transforms as T
 
 class BasicDataset(Dataset):
     
-    def __init__(self, img_path, crop_size = 256, resize = 1024, val = False):
+    def __init__(self, img_path, crop_size = 256, resize = 1024, val = False, l1_loss = False):
         # we may need some validation result in the future
         self.val = val
         self.img_path = img_path
         self.crop_size = crop_size
+        self.l1_loss = l1_loss
         # we won't resize the image now, let's see how it will works
         self.resize = resize
         # scan the file list if necessary
@@ -139,7 +140,10 @@ class BasicDataset(Dataset):
 
         # convert to tensor, and the following process should all be done by cuda
         flat = self.to_tensor(flat_np / 255)
-        shad = self.to_tensor(1 - shad_np / 255, False) # this is label infact
+        if self.l1_loss:
+            shad = self.to_tensor(1 - shad_np / 255) # if we use l1 loss, let's treat the shading as image
+        else:
+            shad = self.to_tensor(1 - shad_np / 255, False) # this is label infact
         mask = self.to_tensor(mask_np / 255, False)
         label = torch.Tensor([label])
         # it returns tensor at last
