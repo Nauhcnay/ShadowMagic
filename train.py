@@ -29,7 +29,7 @@ def focal_loss(pre, target, gamma = 5):
     weights_pos = mask_pos.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
     weights_neg = mask_neg.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
     # let's assume the weight for negative samples are always 1, so the weight for positive samples will adaptively change
-    mask_weight = mask_pos * (weights_neg / weights_pos) + mask_neg
+    mask_weight = mask_pos * (weights_neg / (weights_pos + 1)) + mask_neg
 
     ## create the focal loss mask
     pre_scores = torch.sigmoid(pre)
