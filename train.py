@@ -200,8 +200,6 @@ def train_net(
 
                 pbar.update(imgs.shape[0])
                 
-                global_step += 1
-                
                 # record the loss more frequently
                 if global_step % 20 == 0 and args.log:
                     wandb.log({'Total Loss': loss.item()}) 
@@ -217,6 +215,9 @@ def train_net(
                     imgs = denormalize(imgs)
                     if l1_loss:
                         gts = denormalize(gts)
+                        pred = denormalize(pred)
+                    else:
+                        pred = torch.sigmoid(pred)
                     sample = torch.cat((imgs,  pred.repeat(1, 3, 1, 1),
                         (pred > 0.9).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
                         gts.repeat(1, 3, 1, 1)), dim = 0)
@@ -245,12 +246,17 @@ def train_net(
                         net.eval()
                         with torch.no_grad():
                             # read validation samples
+                            val_counter = 0
+                            val_figs = []
+                            dims = None
                             for val_img, val_gt, val_mask, label in val_loader:
+                                if val_counter > 5: break
                                 # predict
                                 val_img = val_img.to(device=device, dtype=torch.float32)
                                 val_gt = val_gt.to(device=device, dtype=torch.float32)
                                 label = label.to(device=device, dtype=torch.float32)
                                 val_pred = net(val_img, label)
+                                val_pred = torch.sigmoid(val_pred)
                                 if l1_loss:
                                     val_gt = denormalize(val_gt)
                                 # save result
@@ -260,8 +266,17 @@ def train_net(
                                 val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
                                 val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
                                 val_sample = np.concatenate((val_img, val_pred, val_pred_1, val_pred_2, val_gt), axis = 1)
-                                val_fig_res = wandb.Image(val_sample)
-                                wandb.log({"Val Result":val_fig_res})
+                                val_figs.append(val_sample)
+                                if val_counter == 0:
+                                    dims = (val_sample.shape[1], val_sample.shape[0])
+                                else:
+                                    assert dims is not None
+                            val_figs = np.concatenate(val_figs, axis = 0)
+                            val_fig_res = wandb.Image(val_figs)
+                            wandb.log({"Val Result":val_fig_res})
+
+                # update the global step
+                global_step += 1
         # save model
         if save_cp and epoch % 100 == 0:
             # save trying result in single folder each time
