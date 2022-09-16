@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import sys
+import cv2
 
 import numpy as np
 import torch
@@ -266,12 +267,13 @@ def train_net(
                                 val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
                                 val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
                                 val_sample = np.concatenate((val_img, val_pred, val_pred_1, val_pred_2, val_gt), axis = 1)
-                                val_figs.append(val_sample)
                                 if val_counter == 0:
                                     dims = (val_sample.shape[1], val_sample.shape[0])
                                 else:
                                     assert dims is not None
-                            val_figs = np.concatenate(val_figs, axis = 0)
+                                    val_sample = cv2.resize(val_sample, dims, interpolation = cv2.INTER_AREA)
+                                val_figs.append(val_sample)    
+                            val_figs = np.concatenate(val_figs, axis = 1)
                             val_fig_res = wandb.Image(val_figs)
                             wandb.log({"Val Result":val_fig_res})
 
