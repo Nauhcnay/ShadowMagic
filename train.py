@@ -17,9 +17,31 @@ from layers import UNet
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms as T
+from torch.nn import functional as F
 from torchvision import utils
 from PIL import Image
 
+
+def focal_loss(pre, target, gamma = 5):
+    ## create the weight mask from the ground truth
+    mask_pos = (target == 1).float()
+    mask_neg = (target == 0).float()
+    weights_pos = mask_pos.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
+    weights_neg = mask_neg.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
+    # let's assume the weight for negative samples are always 1, so the weight for positive samples will adaptively change
+    mask_weight = mask_pos * (weights_neg / weights_pos) + mask_neg
+
+    ## create the focal loss mask
+    pre_scores = torch.sigmoid(pre)
+    pre_t = pre_scores * target + (1 - pre_scores) * (1 - target)
+
+    ## compute the bce loss
+    bce_loss = F.binary_cross_entropy_with_logits(pre, target, weight = mask_weight, reduction = 'none')
+
+    ## reduce the weight for very confident prediction results
+    bce_loss = bce_loss * ((1 - pre_t) ** gamma)
+
+    return bce_loss.mean()
 
 def denormalize(img):
     # denormalize
@@ -42,7 +64,7 @@ def train_net(
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
     dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True, l1_loss = l1_loss)
-    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True, drop_last=False)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
     val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=True)
     # we don't need valiation currently
     # val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
@@ -84,8 +106,8 @@ def train_net(
     if l1_loss:
         criterion = nn.L1Loss()
     else:
-        criterion = nn.BCEWithLogitsLoss()
-    
+        # let's use the focal loss instead of the BCE loss directly
+        criterion = focal_loss
     
     # start logging
     if args.log:
@@ -119,8 +141,10 @@ def train_net(
 
                 # forward
                 pred = net(imgs, label)
-                # we will need always denormalize the output
-                pred = denormalize(pred)
+                
+                if l1_loss:
+                    pred = denormalize(pred)
+
                 if mask1_flag == False and mask2_flag == False:
                     # '''
                     # baseline
@@ -339,3 +363,4 @@ if __name__ == '__main__':
     #             crop_size = args.crop,
     #             resize = args.resize
     #         )
+
