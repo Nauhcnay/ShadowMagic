@@ -20,7 +20,7 @@ KEY_TO_DIR = {"type1":"right", "type2":"left", "type3":"back", "type4":"top", "�
 
 # convert layer name to english
 KOR_TO_ENG = {"선화":"line", "레이어":"shadow", "밑색":"flat", "용지":"background", "배경":"background",
-    "레이어 1":"shadow", "레이어 2":"background", "layer 1":"background", "layer 2":"background"}
+    "레이어 1":"shadow", "레이어 2":"background", "layer 1":"background", "layer 2":"background", "그림자":"shadow", "인물 밑색":"flat", "펜터치":"line"}
 KOR_TO_ENG_S = {"선화":"line", "레이어":"shadow", "밑색":"flat", "용지":"background", "레이어 2":"shadow", "레이어 1":"background"}
 
 NAME_LIST = ["FULL01", "FULL02", "FULL03", "FULL04", "FULL05", "FULL06", "FULL07", "FULL08", "FACE03"]
@@ -89,6 +89,8 @@ def psd_to_pngs(path_psd, path_pngs, counter, debug = False):
                     light_dir = KEY_TO_DIR[name.split("-")[-1].lower()]
                 else:
                     light_dir = KEY_TO_DIR[name.split("_")[-1].lower()]
+            if "D3" in path:
+                light_dir = KEY_TO_DIR[name.split("_")[2].lower()]
             else:
                 raise ValueError("the current folder has not been ready for parsing")
             psd = join(path, psd)   
@@ -168,6 +170,19 @@ def flat_to_fillmap(flat):
         color_map.append(int_to_color(c))
     return fill.astype(int), np.array(color_map).astype(np.uint8)
 
+def shadow_to_fillmap(shadow):
+    print("Log:\tconverting shadow to fill map...")
+    h, w = shadow.shape
+    fill = np.ones((h,w))
+    color_idx = 2
+    color_map = [np.array(0), np.array(0)]
+    for c in tqdm(np.unique(shadow)):
+        mask = (shadow == c).squeeze()
+        fill[mask] = color_idx
+        color_map.append(np.array(c).astype(np.uint8))
+        color_idx += 1
+    return fill.astype(int), np.array(color_map).astype(np.uint8)
+
 def fillmap_to_color(fill, color_map=None):
     if color_map is None:
         color_map = np.random.randint(0, 255, (np.max(fill) + 1, 3), dtype=np.uint8)
@@ -182,7 +197,7 @@ def int_to_color(color):
     b = int(color % 1000)
     return np.array([r, g, b, 255])
 
-def flat_refine(flat, line):
+def flat_refine(flat, line, second_pass = False):
     ''' 
     Given: 
         flat, a numpy array as the flat png
@@ -192,29 +207,51 @@ def flat_refine(flat, line):
     '''
     # convert line from rgba to bool mask
     # and interestingly, they use alpha channel as the grayscal image...
-    line_gray = 255 - line[:,:,3]
+    if len(line.shape) == 3:
+        line_gray = 255 - line[:,:,3]
+    else:
+        line_gray = line
     _, line_gray = cv2.threshold(line_gray, 127, 255, cv2.THRESH_BINARY)
     # line_gray = cv2.adaptiveThreshold(line_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-    kernel = np.array([[0,1,0],[1,1,1],[0,1,0]]).astype(np.uint8)
-    # if the iteration is set to less 2, we probably will get noisy boundary issue in the flat layer...
-    line_gray = cv2.erode(line_gray, kernel, iterations = 2) 
+    # kernel = np.array([[0,1,0],[1,1,1],[0,1,0]]).astype(np.uint8)
+    # if second_pass == True:
+    #     line_gray = cv2.erode(line_gray, kernel, iterations = 1) 
+    flat_a = flat[:,:,3]
+    flat[:,:,:3] = flat[:,:,:3] * np.repeat(np.expand_dims((flat_a == 255).astype(int), -1),3,-1)
     # convert flat to fill map
     fill, color_map = flat_to_fillmap(flat)
     # set line drawing into the fill map
     fill[(255 - line_gray).astype(bool)] = 1
+    # remove stray regions
+    flat_refined =  fillmap_to_color(fill, color_map)
+    for r in np.unique(fill):
+        mask = fill == r
+        if mask.sum() < 10:
+            fill[mask] = 1
     fill = thinning(fill)
     flat_refined =  fillmap_to_color(fill, color_map)
     return flat_refined, fill
 
-def shadow_refine(shadow, line):
-    shadow_refined = 255 - shadow[:, :, 3]
-    return shadow_refined
+def binary_shadow(shadow):
+    bshadow = 255 - shadow[:, :, 3]
+    return bshadow
 
 def mask_shadow(fillmap, shadow, line, split = False):
-    shadow = shadow_refine(shadow, line)
+    line = line[:,:,3]
+    line_thres = cv2.adaptiveThreshold(line, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11,0)
+    shadow = binary_shadow(shadow)
+
     if split is False:
         mask = fillmap == 0
-        shadow[mask] = 255
+        # kernel = np.array([[0,1,0],[1,1,1],[0,1,0]]).astype(np.uint8)
+        # mask = cv2.dilate(mask.astype(np.uint8)*255, kernel, iterations = 2)
+        shadow[mask.astype(bool)] = 255
+        _, shadow = cv2.threshold(shadow,200,255,cv2.THRESH_BINARY)
+        # remove stray shadows
+        fill, color_map = shadow_to_fillmap(shadow)
+        fill[line_thres==255] = 1
+        fill = thinning(fill)
+        shadow = fillmap_to_color(fill, color_map)
         return shadow
     else:
         # not sure if this branch is necessary
@@ -224,12 +261,30 @@ def mask_shadow(fillmap, shadow, line, split = False):
 def png_refine(path_pngs, path_output):
     for png in os.listdir(path_pngs):
         if "flat" not in png: continue
-        # open files
         flat = np.array(Image.open(os.path.join(path_pngs, png)))
-        line = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "line"))))
         shadow = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "shadow"))))
+        # open the flat image again to generate the line for flat region refinement
+        edge = np.array(Image.open(os.path.join(path_pngs, png)))
+        line = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "line"))))
+        # we need manually convert RBGA image to the grayscale image
+        edge_a = np.repeat(np.expand_dims(edge[:,:,-1], axis = -1), 3, axis = -1)
+        edge_rgb = edge[:,:,:3]
+        bg_white = np.ones(edge[:,:,:3].shape) * 255
+        edge_rgb = (edge_rgb * (edge_a >= 250) + bg_white * (edge_a <250)).astype(np.uint8)
+        edge_gray = cv2.cvtColor(edge_rgb, cv2.COLOR_BGR2GRAY)
+        edge = np.bitwise_not(cv2.Canny(edge_gray,0,20).astype(bool)).astype(np.uint8)*255
+        # if "0004_back_flat" in png:
+        #     import pdb
+        #     pdb.set_trace()
+        # else:
+        #     continue
+        '''refine by the line drawings, but this may cause hairy edges '''
+        # # open files
+        # flat = np.array(Image.open(os.path.join(path_pngs, png)))
+        # line = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "line"))))
+        # shadow = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "shadow"))))
         # refine pngs  
-        flat, fill = flat_refine(flat, line)
+        flat, fill = flat_refine(flat, edge)
         shadow_full = mask_shadow(fill, shadow, line)
         # shadow_split = mask_shadow(fill, shadow, line, True)
         # save to results to target folder
@@ -240,9 +295,9 @@ def png_refine(path_pngs, path_output):
 if __name__ == "__main__":
     # '''psd layer to separate png images'''
     # PATH_TO_PSD = ["../dataset/raw/Natural", "../dataset/raw/NEW", "../dataset/raw/REFINED"]
-    # PATH_TO_PSD = ["../dataset/raw/D2"]
+    # PATH_TO_PSD = ["../dataset/raw/D3"]
     # OUT_PATH = "../dataset/Natural_png_rough"
-    # psd_to_pngs(PATH_TO_PSD, OUT_PATH, 177, debug = False)
+    # psd_to_pngs(PATH_TO_PSD, OUT_PATH, 255, debug = False)
     
 
     '''correct shading layers'''
