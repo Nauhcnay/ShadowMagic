@@ -218,7 +218,7 @@ def train_net(
 
                 # record the image output 
                 # if True:
-                if global_step % 350 == 0:
+                if global_step % 100 == 0:
                     imgs = denormalize(imgs)
                     if l1_loss:
                         gts = denormalize(gts)
