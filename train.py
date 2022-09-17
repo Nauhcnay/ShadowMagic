@@ -275,8 +275,9 @@ def train_net(
                                 else:
                                     assert dims is not None
                                     val_sample = cv2.resize(val_sample, dims, interpolation = cv2.INTER_AREA)
+                                val_counter += 1
                                 val_figs.append(val_sample)    
-                            val_figs = np.concatenate(val_figs, axis = 1)
+                            val_figs = np.concatenate(val_figs, axis = 0)
                             val_fig_res = wandb.Image(val_figs)
                             wandb.log({"Val Result":val_fig_res})
 

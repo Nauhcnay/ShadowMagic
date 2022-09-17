@@ -126,6 +126,7 @@ class BasicDataset(Dataset):
         mask_np = cv2.resize(mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
 
         # we don't need image augmentation for val
+        # if True:
         if self.val == False:
             # augment image, let's do this in numpy!
             img_list, label = self.random_flip([flat_np, shad_np, mask_np], label)
