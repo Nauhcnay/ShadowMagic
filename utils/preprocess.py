@@ -261,6 +261,10 @@ def mask_shadow(fillmap, shadow, line, split = False):
 def png_refine(path_pngs, path_output):
     for png in os.listdir(path_pngs):
         if "flat" not in png: continue
+        print("log:\topening %s"%png)
+        if os.path.exists(os.path.join(path_output, png)) and os.path.exists(os.path.join(path_output, png.replace("flat", "shadow"))) \
+            and os.path.exists(os.path.join(path_output, png.replace("flat", "line"))):
+            continue
         flat = np.array(Image.open(os.path.join(path_pngs, png)))
         shadow = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "shadow"))))
         # open the flat image again to generate the line for flat region refinement
@@ -283,14 +287,18 @@ def png_refine(path_pngs, path_output):
         # flat = np.array(Image.open(os.path.join(path_pngs, png)))
         # line = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "line"))))
         # shadow = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "shadow"))))
-        # refine pngs  
-        flat, fill = flat_refine(flat, edge)
-        shadow_full = mask_shadow(fill, shadow, line)
+        # refine pngs
+        if os.path.exists(os.path.join(path_output, png)) is False:
+            flat, fill = flat_refine(flat, edge)
+            Image.fromarray(flat).save(os.path.join(path_output, png))
+        if os.path.exists(os.path.join(path_output, png.replace("flat", "shadow"))) is False:
+            if os.path.exists(os.path.join(path_output, png)) is True:
+                flat, fill = flat_refine(flat, edge)
+            shadow_full = mask_shadow(fill, shadow, line)
+            Image.fromarray(shadow_full).save(os.path.join(path_output, png.replace("flat", "shadow")))
         # shadow_split = mask_shadow(fill, shadow, line, True)
         # save to results to target folder
         Image.fromarray(line).save(os.path.join(path_output, png.replace("flat", "line")))
-        Image.fromarray(flat).save(os.path.join(path_output, png))
-        Image.fromarray(shadow_full).save(os.path.join(path_output, png.replace("flat", "shadow")))
 
 if __name__ == "__main__":
     # '''psd layer to separate png images'''
