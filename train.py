@@ -23,24 +23,26 @@ from torchvision import utils
 from PIL import Image
 
 
-def focal_loss(pre, target, gamma = 5):
-    ## create the weight mask from the ground truth
-    mask_pos = (target == 1).float()
-    mask_neg = (target == 0).float()
-    weights_pos = mask_pos.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
-    weights_neg = mask_neg.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
-    # let's assume the weight for negative samples are always 1, so the weight for positive samples will adaptively change
-    if (weights_pos == 0).all():
-        mask_weight = mask_pos + mask_neg    
-    else:
-        mask_weight = mask_pos * (weights_neg / (weights_pos + 1)) + mask_neg
+def focal_loss(pre, target, weighted = False, gamma = 5):
+    if weighted:
+        ## create the weight mask from the ground truth
+        mask_pos = (target == 1).float()
+        mask_neg = (target == 0).float()
+        weights_pos = mask_pos.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
+        weights_neg = mask_neg.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
+        # let's assume the weight for negative samples are always 1, so the weight for positive samples will adaptively change
+        if (weights_pos == 0).all():
+            mask_weight = mask_pos + mask_neg    
+        else:
+            mask_weight = mask_pos * (weights_neg / (weights_pos + 1)) + mask_neg
 
+        ## compute the bce loss
+        bce_loss = F.binary_cross_entropy_with_logits(pre, target, weight = mask_weight, reduction = 'none')
+    else:
+        bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
     ## create the focal loss mask
     pre_scores = torch.sigmoid(pre)
     pre_t = pre_scores * target + (1 - pre_scores) * (1 - target)
-
-    ## compute the bce loss
-    bce_loss = F.binary_cross_entropy_with_logits(pre, target, weight = mask_weight, reduction = 'none')
 
     ## reduce the weight for very confident prediction results
     bce_loss = bce_loss * ((1 - pre_t) ** gamma)
@@ -63,7 +65,8 @@ def train_net(
               save_cp=True,
               crop_size = 256,
               resize = 1024,
-              l1_loss = False):
+              l1_loss = False,
+              weight_focal = False):
 
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
@@ -153,7 +156,7 @@ def train_net(
                     # '''
                     # baseline
                     # '''
-                    loss = criterion(pred, gts)
+                    loss = criterion(pred, gts, weighted = weight_focal)
                 else:
                     '''
                     weighted loss
@@ -302,6 +305,8 @@ def get_args():
     parser.add_argument('-e', '--epochs', metavar='E', type=int, default=90000,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-m', '--multi-gpu', action='store_true')
+    parser.add_argument('-w', '--weighted-focal', action='store_true', dest="mask_focal",
+                        help="apply weights when computing the focal loss")
     parser.add_argument('-w1', '--weighted-loss1', action='store_true', dest="mask1",
                         help="use mask type 1 to weight the loss computation")
     parser.add_argument('-w2', '--weighted-loss2', action='store_true', dest="mask2",
@@ -363,6 +368,7 @@ if __name__ == '__main__':
                     crop_size = args.crop,
                     resize = args.resize,
                     use_mask = [args.mask1, args.mask2],
+                    weight_focal = args.mask_focal,
                     l1_loss = args.l1
                   )
 
