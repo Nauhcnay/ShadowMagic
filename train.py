@@ -260,9 +260,11 @@ def train_net(
                                 val_gt = val_gt.to(device=device, dtype=torch.float32)
                                 label = label.to(device=device, dtype=torch.float32)
                                 val_pred = net(val_img, label)
-                                val_pred = torch.sigmoid(val_pred)
                                 if l1_loss:
                                     val_gt = denormalize(val_gt)
+                                    val_pred = denormalize(val_pred)
+                                else:
+                                    val_pred = torch.sigmoid(val_pred)
                                 # save result
                                 val_img = tensor_to_img(denormalize(val_img))
                                 val_pred_1 = tensor_to_img((val_pred > 0.9).repeat(1, 3, 1, 1))
