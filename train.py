@@ -23,8 +23,8 @@ from torchvision import utils
 from PIL import Image
 
 
-def focal_loss(pre, target, weighted = False, gamma = 5, mask = None):
-    if weighted:
+def focal_loss(pre, target, mask_gt = False, gamma = 5, mask_flat = None):
+    if mask_gt:
         ## create the weight mask from the ground truth
         mask_pos = (target == 1).float()
         mask_neg = (target == 0).float()
@@ -40,10 +40,10 @@ def focal_loss(pre, target, weighted = False, gamma = 5, mask = None):
         bce_loss = F.binary_cross_entropy_with_logits(pre, target, weight = mask_weight, reduction = 'none')
     else:
         bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
-    if mask is not None:
+    if mask_flat is not None:
         # we increase the weight inside the mask by 10 times, reduce the weight outside the mask by 0.1 times
-        mask_pos = mask * 2
-        mask_neg = (1 - mask) * 0.5
+        mask_pos = mask_flat * 2
+        mask_neg = (1 - mask_flat) * 0.5
         mask = mask_pos + mask_neg
 
     ## create the focal loss mask
@@ -74,8 +74,7 @@ def train_net(
               save_cp=True,
               crop_size = 256,
               resize = 1024,
-              l1_loss = False,
-              weight_focal = False):
+              l1_loss = False):
 
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
@@ -93,9 +92,9 @@ def train_net(
     
     mask1_flag, mask2_flag = use_mask
     if mask1_flag and mask2_flag == False:
-        mask_str = "Type1"
+        mask_str = "Flat"
     elif mask1_flag == False and mask2_flag:
-        mask_str = "Type2"
+        mask_str = "GT"
     elif mask1_flag and mask2_flag:
         mask_str = "Both types"
     else:
@@ -110,7 +109,6 @@ def train_net(
         Device:          {device.type}
         Crop size:       {crop_size}
         Use Mask:        {mask_str}
-        Weight Focal:    {weight_focal}
         Loss:            {"L1" if l1_loss else "BCE"}
     ''')
 
@@ -166,10 +164,10 @@ def train_net(
                     # '''
                     # baseline
                     # '''
-                    loss = criterion(pred, gts, weighted = weight_focal)
+                    loss = criterion(pred, gts)
                 else:
                     '''
-                    weighted loss
+                    mask_gt loss
                     we only care the flat regions shadow, so we could ignore the false positive prediction at the background
                     '''
                     if mask1_flag and mask2_flag == False:
@@ -179,7 +177,7 @@ def train_net(
                         # # loss of labels inside flat mask
                         # loss2 = criterion(pred * mask1, gts * mask1)
                         # loss3 = 0
-                        loss = criterion(pred, gts, weighted = weight_focal, mask = mask)
+                        loss = criterion(pred, gts, mask_flat = mask)
                     # deprecated branches, don't use!
                     if mask2_flag and mask1_flag == False:
                         # if l1_loss:
@@ -191,7 +189,7 @@ def train_net(
                         # # loss that inside of gt mask
                         # loss2 = criterion(pred * mask2, gts * mask2)
                         # loss3 = 0
-                        loss = criterion(pred, gts, weighted = weight_focal, mask = mask)
+                        loss = criterion(pred, gts, mask_gt = True)
                     if mask1_flag and mask2_flag:
                         # mask1 = mask
                         # if l1_loss:
@@ -205,7 +203,7 @@ def train_net(
                         # loss2 = criterion(pred * mask2, gts * mask2)
                         # # loss that inside flat mask and negtive label of gt mask
                         # loss3 = criterion(pred * mask3, gts * mask3)
-                        loss = criterion(pred, gts, weighted = weight_focal, mask = mask)
+                        loss = criterion(pred, gts, mask_gt = True, mask_flat = mask)
                     # total loss
                     # loss = 0.5 * loss1 + loss2 + 1.5 * loss3
 
@@ -319,8 +317,6 @@ def get_args():
     parser.add_argument('-e', '--epochs', metavar='E', type=int, default=90000,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-m', '--multi-gpu', action='store_true')
-    parser.add_argument('-w', '--weighted-focal', action='store_true', dest="mask_focal",
-                        help="apply weights when computing the focal loss")
     parser.add_argument('-w1', '--weighted-flat', action='store_true', dest="mask1",
                         help="use flat mask to weight the loss computation")
     parser.add_argument('-w2', '--weighted-gt', action='store_true', dest="mask2",
@@ -382,7 +378,6 @@ if __name__ == '__main__':
                     crop_size = args.crop,
                     resize = args.resize,
                     use_mask = [args.mask1, args.mask2],
-                    weight_focal = args.mask_focal,
                     l1_loss = args.l1
                   )
 
