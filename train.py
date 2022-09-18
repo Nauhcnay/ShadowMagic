@@ -226,7 +226,7 @@ def train_net(
                     else:
                         pred = torch.sigmoid(pred)
                     sample = torch.cat((imgs,  pred.repeat(1, 3, 1, 1),
-                        (pred > 0.9).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
+                        (pred > 0.7).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
                         gts.repeat(1, 3, 1, 1)), dim = 0)
                     result_folder = os.path.join("./results/train/", dt_formatted)
                     if os.path.exists(result_folder) is False:
@@ -270,7 +270,7 @@ def train_net(
                                     val_pred = torch.sigmoid(val_pred)
                                 # save result
                                 val_img = tensor_to_img(denormalize(val_img))
-                                val_pred_1 = tensor_to_img((val_pred > 0.9).repeat(1, 3, 1, 1))
+                                val_pred_1 = tensor_to_img((val_pred > 0.7).repeat(1, 3, 1, 1))
                                 val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
                                 val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
                                 val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
