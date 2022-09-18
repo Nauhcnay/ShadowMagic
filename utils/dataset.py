@@ -35,6 +35,7 @@ class BasicDataset(Dataset):
         # set dirction dict, mapping text to float number
         self.to_dir_label = {"right": 0.25, "left":0.5, "back":0.75, "top":1.0}
         self.lable_flip = {0.25:0.5, 0.5:0.25}
+        self.kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
         logging.info(f'Creating dataset with {len(self.ids)} examples')
 
 
@@ -118,26 +119,31 @@ class BasicDataset(Dataset):
         # we need an additional thershold for this
         _, shad_np = cv2.threshold(shad_np, 127, 255, cv2.THRESH_BINARY)
 
+        # create edge mask
+        mask_edge_np = cv2.Canny(shad_np, 100, 200)
+        mask_edge_np = cv2.dilate(mask_edge_np, self.kernel, iterations = 2)
         # resize image, now we still have to down sample the input a little bit for a easy training
         h, w = shad_np.shape
         h, w = self.resize_hw(h, w)
         flat_np = cv2.resize(flat_np, (w, h), interpolation = cv2.INTER_AREA)
         shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_NEAREST)
         mask_np = cv2.resize(mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
+        mask_edge_np = cv2.resize(mask_edge_np, (w, h), interpolation = cv2.INTER_NEAREST)
 
         # we don't need image augmentation for val
         # if True:
         if self.val == False:
             # augment image, let's do this in numpy!
-            img_list, label = self.random_flip([flat_np, shad_np, mask_np], label)
-            flat_np, shad_np, mask_np = img_list
+            img_list, label = self.random_flip([flat_np, shad_np, mask_np, mask_edge_np], label)
+            flat_np, shad_np, mask_np, mask_edge_np = img_list
             bbox = self.random_bbox(flat_np)
-            flat_np, shad_np, mask_np = self.crop([flat_np, shad_np, mask_np], bbox)
+            flat_np, shad_np, mask_np, mask_edge_np = self.crop([flat_np, shad_np, mask_np, mask_edge_np], bbox)
         
         # clip values
         flat_np = flat_np.clip(0, 255)
         shad_np = shad_np.clip(0, 255)
         mask_np = mask_np.clip(0, 255)
+        mask_edge_np = mask_edge_np.clip(0, 255)
 
         # convert to tensor, and the following process should all be done by cuda
         flat = self.to_tensor(flat_np / 255)
@@ -146,9 +152,10 @@ class BasicDataset(Dataset):
         else:
             shad = self.to_tensor(1 - shad_np / 255, False) # this is label infact
         mask = self.to_tensor(mask_np / 255, False)
+        mask_edge = self.to_tensor(mask_edge_np / 255, False)
         label = torch.Tensor([label])
         # it returns tensor at last
-        return flat, shad, mask, label
+        return flat, shad, mask, mask_edge, label
 
     def random_bbox(self, img):
         h, w, _ = img.shape
