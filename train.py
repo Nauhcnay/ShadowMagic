@@ -23,7 +23,7 @@ from torchvision import utils
 from PIL import Image
 
 
-def focal_loss(pre, target, weighted = False, gamma = 5):
+def focal_loss(pre, target, weighted = False, gamma = 5, mask = None):
     if weighted:
         ## create the weight mask from the ground truth
         mask_pos = (target == 1).float()
@@ -40,12 +40,21 @@ def focal_loss(pre, target, weighted = False, gamma = 5):
         bce_loss = F.binary_cross_entropy_with_logits(pre, target, weight = mask_weight, reduction = 'none')
     else:
         bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
+    if mask is not None:
+        # we increase the weight inside the mask by 10 times, reduce the weight outside the mask by 0.1 times
+        mask_pos = mask * 2
+        mask_neg = (1 - mask) * 0.5
+        mask = mask_pos + mask_neg
+
     ## create the focal loss mask
     pre_scores = torch.sigmoid(pre)
     pre_t = pre_scores * target + (1 - pre_scores) * (1 - target)
 
-    ## reduce the weight for very confident prediction results
-    bce_loss = bce_loss * ((1 - pre_t) ** gamma)
+    if mask is not None:
+        ## reduce the weight for very confident prediction results
+        bce_loss = bce_loss * mask * ((1 - pre_t) ** gamma)
+    else:
+        bce_loss = bce_loss * ((1 - pre_t) ** gamma)
 
     return bce_loss.mean()
 
@@ -101,6 +110,7 @@ def train_net(
         Device:          {device.type}
         Crop size:       {crop_size}
         Use Mask:        {mask_str}
+        Weight Focal:    {weight_focal}
         Loss:            {"L1" if l1_loss else "BCE"}
     ''')
 
@@ -163,37 +173,41 @@ def train_net(
                     we only care the flat regions shadow, so we could ignore the false positive prediction at the background
                     '''
                     if mask1_flag and mask2_flag == False:
-                        mask1 = mask
-                        # loss of labels outside flat mask
-                        loss1 = criterion(pred * (1 - mask1), gts * (1 - mask1)) 
-                        # loss of labels inside flat mask
-                        loss2 = criterion(pred * mask1, gts * mask1)
-                        loss3 = 0
+                        # mask1 = mask
+                        # # loss of labels outside flat mask
+                        # loss1 = criterion(pred * (1 - mask1), gts * (1 - mask1)) 
+                        # # loss of labels inside flat mask
+                        # loss2 = criterion(pred * mask1, gts * mask1)
+                        # loss3 = 0
+                        loss = criterion(pred, gts, weighted = weight_focal, mask = mask)
+                    # deprecated branches, don't use!
                     if mask2_flag and mask1_flag == False:
-                        if l1_loss:
-                            mask2 = denormalize(gts)
-                        else:
-                            mask2 = gts
-                        # loss that outside gt mask
-                        loss1 = criterion(pred * (1 - mask2), gts * (1 - mask2)) 
-                        # loss that inside of gt mask
-                        loss2 = criterion(pred * mask2, gts * mask2)
-                        loss3 = 0
+                        # if l1_loss:
+                        #     mask2 = denormalize(gts)
+                        # else:
+                        #     mask2 = gts
+                        # # loss that outside gt mask
+                        # loss1 = criterion(pred * (1 - mask2), gts * (1 - mask2)) 
+                        # # loss that inside of gt mask
+                        # loss2 = criterion(pred * mask2, gts * mask2)
+                        # loss3 = 0
+                        loss = criterion(pred, gts, weighted = weight_focal, mask = mask)
                     if mask1_flag and mask2_flag:
-                        mask1 = mask
-                        if l1_loss:
-                            mask2 = denormalize(gts)
-                        else:
-                            mask2 = gts
-                        mask3 = mask1 * (1 - mask2)
-                        # loss that outside the flat mask
-                        loss1 = criterion(pred * (1 - mask1), gts * (1 - mask1)) 
-                        # loss that inside gt mask
-                        loss2 = criterion(pred * mask2, gts * mask2)
-                        # loss that inside flat mask and negtive label of gt mask
-                        loss3 = criterion(pred * mask3, gts * mask3)
+                        # mask1 = mask
+                        # if l1_loss:
+                        #     mask2 = denormalize(gts)
+                        # else:
+                        #     mask2 = gts
+                        # mask3 = mask1 * (1 - mask2)
+                        # # loss that outside the flat mask
+                        # loss1 = criterion(pred * (1 - mask1), gts * (1 - mask1)) 
+                        # # loss that inside gt mask
+                        # loss2 = criterion(pred * mask2, gts * mask2)
+                        # # loss that inside flat mask and negtive label of gt mask
+                        # loss3 = criterion(pred * mask3, gts * mask3)
+                        loss = criterion(pred, gts, weighted = weight_focal, mask = mask)
                     # total loss
-                    loss = 0.5 * loss1 + loss2 + 1.5 * loss3
+                    # loss = 0.5 * loss1 + loss2 + 1.5 * loss3
 
                 # record loss
                 epoch_loss += loss.item()
@@ -210,10 +224,10 @@ def train_net(
                 # record the loss more frequently
                 if global_step % 20 == 0 and args.log:
                     wandb.log({'Total Loss': loss.item()}) 
-                    if mask1_flag or mask2_flag:
-                        wandb.log({'Loss outside flat/gt mask': loss1.item()}) 
-                        wandb.log({'Loss inside flat/flat only/gt mask)': loss2.item()}) 
-                        wandb.log({'Loss inside gt mask (if loss3 is none zero)': loss3.item()}) 
+                    # if mask1_flag or mask2_flag:
+                    #     wandb.log({'Loss outside flat/gt mask': loss1.item()}) 
+                    #     wandb.log({'Loss inside flat/flat only/gt mask)': loss2.item()}) 
+                    #     wandb.log({'Loss inside gt mask (if loss3 is none zero)': loss3.item()}) 
                     # wandb.log({'Loss pos labels inside GT': loss3.item()}) 
 
                 # record the image output 
@@ -307,10 +321,10 @@ def get_args():
     parser.add_argument('-m', '--multi-gpu', action='store_true')
     parser.add_argument('-w', '--weighted-focal', action='store_true', dest="mask_focal",
                         help="apply weights when computing the focal loss")
-    parser.add_argument('-w1', '--weighted-loss1', action='store_true', dest="mask1",
-                        help="use mask type 1 to weight the loss computation")
-    parser.add_argument('-w2', '--weighted-loss2', action='store_true', dest="mask2",
-                        help="use mask type 2 to weight the loss computation")
+    parser.add_argument('-w1', '--weighted-flat', action='store_true', dest="mask1",
+                        help="use flat mask to weight the loss computation")
+    parser.add_argument('-w2', '--weighted-gt', action='store_true', dest="mask2",
+                        help="use gt as mask to weight the loss computation")
     parser.add_argument('-c', '--crop-size', metavar='C', type=int, default=512,
                         help='the size of random cropping', dest="crop")
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=1,
