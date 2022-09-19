@@ -46,7 +46,7 @@ def focal_loss(pre, target, mask_gt = False, gamma = 5, mask_flat = None, mask_e
         mask = mask * (mask_pos + mask_neg)
 
     if mask_edge is not None:
-        mask_edge_pos = mask_edge * 200
+        mask_edge_pos = mask_edge * 50
         mask_gt_pos = (target == 1).float()
         mask_gt_pos = (mask_gt_pos - mask_edge_pos).clamp(0, 1)
         mask_gt_neg = (target == 0).float()
