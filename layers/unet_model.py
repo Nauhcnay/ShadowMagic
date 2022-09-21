@@ -24,7 +24,7 @@ class UNet(nn.Module):
         self.up2 = Up(512, 256 // factor, bilinear)
         self.up3 = Up(256, 128 // factor, bilinear)
         self.up4 = Up(128, 64, bilinear)
-        self.outc = OutConv(64, out_channels, l1)
+        self.outc = OutConv(64, out_channels)
 
     # we need to add a label to the featrue map so that could cat to the  
     def forward(self, x, label):

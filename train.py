@@ -78,7 +78,7 @@ def train_net(
               img_path,
               net,
               device,
-              use_mask = [True, False],
+              use_mask = [True, False, False],
               epochs=999,
               batch_size=1,
               lr=0.001,
