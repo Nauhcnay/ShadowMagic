@@ -39,7 +39,7 @@ class UNet(nn.Module):
         x5 = self.down4(x4_cat)
         x6 = self.bottle1(x5)
         x7 = self.bottle2(x6)
-        x = self.up1(x6, x4)
+        x = self.up1(x7, x4)
         x = self.up2(x, x3)
         x = self.up3(x, x2)
         x = self.up4(x, x1)
