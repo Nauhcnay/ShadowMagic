@@ -91,7 +91,7 @@ def train_net(
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
     dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True, l1_loss = l1_loss)
-    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=False)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
     val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=True)
     # we don't need valiation currently
     # val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
@@ -160,16 +160,19 @@ def train_net(
         net.train()
         epoch_loss = 0
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
-            for imgs, gts, mask, mask_edge, label in train_loader:
-
+            for imgs, gts_list, mask, mask_edge, label in train_loader:
+                gts, gts_d2x, gts_d4x, gts_d8x = gts_list
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 gts = gts.to(device=device, dtype=torch.float32)
+                gts_d2x = gts_d2x.to(device=device, dtype=torch.float32)
+                gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
+                gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
                 mask = mask.to(device=device, dtype=torch.float32)
                 mask_edge = mask_edge.to(device=device, dtype=torch.float32)
                 label = label.to(device=device, dtype=torch.float32)
 
                 # forward
-                pred = net(imgs, label)
+                pred, pred_d2x, pred_d4x, pred_d8x = net(imgs, label)
                 
                 if l1_loss:
                     pred = denormalize(pred)
@@ -180,6 +183,9 @@ def train_net(
                     mask_edge = mask_edge if mask3_flag else None
                     loss = criterion(pred, gts, mask_gt = mask_gt, gamma = 5, 
                         mask_flat = mask_flat, mask_edge = mask_edge)
+                    loss = loss + criterion(pred_d2x, gts_d2x, mask_gt = mask_gt, gamma = 5)
+                    loss = loss + criterion(pred_d4x, gts_d4x, mask_gt = mask_gt, gamma = 5)
+                    loss = loss + criterion(pred_d8x, gts_d8x, mask_gt = mask_gt, gamma = 5)
                 
                 # if mask1_flag == False and mask2_flag == False:
                 #     # '''

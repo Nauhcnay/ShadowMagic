@@ -21,8 +21,11 @@ class UNet(nn.Module):
         self.bottle1 = DoubleDilatedConv(512, 512)
         self.bottle2 = DoubleDilatedConv(512, 512)
         self.up1 = Up(1024, 512 // factor, bilinear)
+        self.out1 = OutConv(512 //factor, out_channels)
         self.up2 = Up(512, 256 // factor, bilinear)
+        self.out2 = OutConv(256 //factor, out_channels)
         self.up3 = Up(256, 128 // factor, bilinear)
+        self.out3 = OutConv(128 //factor, out_channels)
         self.up4 = Up(128, 64, bilinear)
         self.outc = OutConv(64, out_channels)
 
@@ -39,9 +42,12 @@ class UNet(nn.Module):
         x5 = self.down4(x4_cat)
         x6 = self.bottle1(x5)
         x7 = self.bottle2(x6)
-        x = self.up1(x7, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
+        x = self.up1(x7, x4) # 64
+        x_down_8x = self.out1(x)
+        x = self.up2(x, x3) # 128
+        x_down_4x = self.out2(x)
+        x = self.up3(x, x2) # 256
+        x_down_2x = self.out3(x)
+        x = self.up4(x, x1) # 512
         logits = self.outc(x)
-        return logits
+        return logits, x_down_2x, x_down_4x, x_down_8x

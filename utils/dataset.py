@@ -142,6 +142,9 @@ class BasicDataset(Dataset):
         # clip values
         flat_np = flat_np.clip(0, 255)
         shad_np = shad_np.clip(0, 255)
+        shad_np_d2x = self.down_sample(shad_np)
+        shad_np_d4x = self.down_sample(shad_np_d2x)
+        shad_np_d8x = self.down_sample(shad_np_d4x)
         mask_np = mask_np.clip(0, 255)
         mask_edge_np = mask_edge_np.clip(0, 255)
 
@@ -150,13 +153,22 @@ class BasicDataset(Dataset):
         if self.l1_loss:
             shad = self.to_tensor(1 - shad_np / 255) # if we use l1 loss, let's treat the shading as image
         else:
-            shad = self.to_tensor(1 - shad_np / 255, False) # this is label infact
+            shad = self.to_tensor(1 - shad_np / 255, False)
+            shad_d2x = self.to_tensor(1 - shad_np_d2x / 255, False)
+            shad_d4x = self.to_tensor(1 - shad_np_d4x / 255, False)
+            shad_d8x = self.to_tensor(1 - shad_np_d8x / 255, False)
         mask = self.to_tensor(mask_np / 255, False)
         mask_edge = self.to_tensor(mask_edge_np / 255, False)
         label = torch.Tensor([label])
         # it returns tensor at last
-        return flat, shad, mask, mask_edge, label
-
+        return flat, (shad, shad_d2x, shad_d4x, shad_d8x), mask, mask_edge, label
+    
+    def down_sample(self, img):
+        dw = int(img.shape[1] / 2)
+        dh = int(img.shape[0] / 2)
+        img_d2x = cv2.resize(img, (dw, dh), interpolation = cv2.INTER_NEAREST)
+        return img_d2x
+    
     def random_bbox(self, img):
         h, w, _ = img.shape
         # we generate top, left, bottom, right
