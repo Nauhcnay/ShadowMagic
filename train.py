@@ -91,7 +91,7 @@ def train_net(
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
     dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True, l1_loss = l1_loss)
-    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=False)
     val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=True)
     # we don't need valiation currently
     # val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
@@ -303,7 +303,7 @@ def train_net(
                                 val_img = val_img.to(device=device, dtype=torch.float32)
                                 val_gt = val_gt.to(device=device, dtype=torch.float32)
                                 label = label.to(device=device, dtype=torch.float32)
-                                val_pred = net(val_img, label)
+                                val_pred, _, _, _ = net(val_img, label)
                                 if l1_loss:
                                     val_gt = denormalize(val_gt)
                                     val_pred = denormalize(val_pred)
