@@ -296,9 +296,10 @@ def train_net(
                             val_counter = 0
                             val_figs = []
                             dims = None
-                            for val_img, val_gt, _, _, label in val_loader:
+                            for val_img, val_gt_list, _, _, label in val_loader:
                                 if val_counter > 5: break
                                 # predict
+                                val_gt, _, _, _ = val_gt_list
                                 val_img = val_img.to(device=device, dtype=torch.float32)
                                 val_gt = val_gt.to(device=device, dtype=torch.float32)
                                 label = label.to(device=device, dtype=torch.float32)
