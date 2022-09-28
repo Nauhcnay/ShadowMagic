@@ -86,7 +86,9 @@ def train_net(
               save_cp=True,
               crop_size = 256,
               resize = 1024,
-              l1_loss = False):
+              l1_loss = False,
+              name = None,
+              progressive = False):
 
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
@@ -139,7 +141,7 @@ def train_net(
     
     # start logging
     if args.log:
-        wandb.init(project = "ShadowMagic Ver 0.1", entity="waterheater")
+        wandb.init(project = "ShadowMagic Ver 0.1", entity="waterheater", name = name)
         wandb.config = {
           "learning_rate": lr,
           "epochs": epochs, 
@@ -183,9 +185,10 @@ def train_net(
                     mask_edge = mask_edge if mask3_flag else None
                     loss = criterion(pred, gts, mask_gt = mask_gt, gamma = 5, 
                         mask_flat = mask_flat, mask_edge = mask_edge)
-                    loss = loss + criterion(pred_d2x, gts_d2x, mask_gt = mask_gt, gamma = 5)
-                    loss = loss + criterion(pred_d4x, gts_d4x, mask_gt = mask_gt, gamma = 5)
-                    loss = loss + criterion(pred_d8x, gts_d8x, mask_gt = mask_gt, gamma = 5)
+                    if progressive:
+                        loss = loss + criterion(pred_d2x, gts_d2x, mask_gt = mask_gt, gamma = 5)
+                        loss = loss + criterion(pred_d4x, gts_d4x, mask_gt = mask_gt, gamma = 5)
+                        loss = loss + criterion(pred_d8x, gts_d8x, mask_gt = mask_gt, gamma = 5)
                 
                 # if mask1_flag == False and mask2_flag == False:
                 #     # '''
@@ -350,10 +353,12 @@ def get_args():
                         help="use flat mask to weight the loss computation")
     parser.add_argument('-w2', '--weighted-gt', action='store_true', dest="mask2",
                         help="use gt as mask to weight the loss computation")
-    parser.add_argument('-w3', '--weighted-gt-edge', action='store_true', dest="mask3",
-                        help="use gt mask edge to weight the loss computation")
+    # parser.add_argument('-w3', '--weighted-gt-edge', action='store_true', dest="mask3",
+    #                     help="use gt mask edge to weight the loss computation")
     parser.add_argument('-c', '--crop-size', metavar='C', type=int, default=512,
                         help='the size of random cropping', dest="crop")
+    parser.add_argument('-n', '--crop-size', type=str,
+                        help='the name for wandb logging', dest="name")
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=1,
                         help='Batch size', dest='batchsize')
     parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.0001,
@@ -364,6 +369,7 @@ def get_args():
                         help='resize the shorter edge of the training image')
     parser.add_argument('-i', '--imgs', dest="imgs", type=str,
                         help='the path to training set')
+    parser.add_argument('-p', '--pro', dest="progressive", action = "store_true")
     parser.add_argument('--log', action="store_true", help='enable wandb log')
     parser.add_argument('--l1', action="store_true", help='use L1 loss instead of BCE loss')
 
@@ -409,7 +415,9 @@ if __name__ == '__main__':
                     crop_size = args.crop,
                     resize = args.resize,
                     use_mask = [args.mask1, args.mask2, args.mask3],
-                    l1_loss = args.l1
+                    l1_loss = args.l1,
+                    name = args.name,
+                    progressive = args.progressive
                   )
 
     # this is interesting, save model when keyborad interrupt
