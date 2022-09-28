@@ -189,54 +189,6 @@ def train_net(
                         loss = loss + criterion(pred_d2x, gts_d2x, mask_gt = mask_gt, gamma = 5)
                         loss = loss + criterion(pred_d4x, gts_d4x, mask_gt = mask_gt, gamma = 5)
                         loss = loss + criterion(pred_d8x, gts_d8x, mask_gt = mask_gt, gamma = 5)
-                
-                # if mask1_flag == False and mask2_flag == False:
-                #     # '''
-                #     # baseline
-                #     # '''
-                #     loss = criterion(pred, gts)
-                # else:
-                #     '''
-                #     mask_gt loss
-                #     we only care the flat regions shadow, so we could ignore the false positive prediction at the background
-                #     '''
-                #     if mask1_flag and mask2_flag == False:
-                #         # mask1 = mask
-                #         # # loss of labels outside flat mask
-                #         # loss1 = criterion(pred * (1 - mask1), gts * (1 - mask1)) 
-                #         # # loss of labels inside flat mask
-                #         # loss2 = criterion(pred * mask1, gts * mask1)
-                #         # loss3 = 0
-                #         if mask3_flag:
-                #             loss = criterion(pred, gts, mask_flat = mask_edge)
-                #     # deprecated branches, don't use!
-                #     if mask2_flag and mask1_flag == False:
-                #         # if l1_loss:
-                #         #     mask2 = denormalize(gts)
-                #         # else:
-                #         #     mask2 = gts
-                #         # # loss that outside gt mask
-                #         # loss1 = criterion(pred * (1 - mask2), gts * (1 - mask2)) 
-                #         # # loss that inside of gt mask
-                #         # loss2 = criterion(pred * mask2, gts * mask2)
-                #         # loss3 = 0
-                #         loss = criterion(pred, gts, mask_gt = True)
-                #     if mask1_flag and mask2_flag:
-                #         # mask1 = mask
-                #         # if l1_loss:
-                #         #     mask2 = denormalize(gts)
-                #         # else:
-                #         #     mask2 = gts
-                #         # mask3 = mask1 * (1 - mask2)
-                #         # # loss that outside the flat mask
-                #         # loss1 = criterion(pred * (1 - mask1), gts * (1 - mask1)) 
-                #         # # loss that inside gt mask
-                #         # loss2 = criterion(pred * mask2, gts * mask2)
-                #         # # loss that inside flat mask and negtive label of gt mask
-                #         # loss3 = criterion(pred * mask3, gts * mask3)
-                #         loss = criterion(pred, gts, mask_gt = True, mask_flat = mask)
-                #     # total loss
-                #     # loss = 0.5 * loss1 + loss2 + 1.5 * loss3
 
                 # record loss
                 epoch_loss += loss.item()
@@ -353,11 +305,11 @@ def get_args():
                         help="use flat mask to weight the loss computation")
     parser.add_argument('-w2', '--weighted-gt', action='store_true', dest="mask2",
                         help="use gt as mask to weight the loss computation")
-    # parser.add_argument('-w3', '--weighted-gt-edge', action='store_true', dest="mask3",
-    #                     help="use gt mask edge to weight the loss computation")
+    parser.add_argument('-w3', '--weighted-gt-edge', action='store_true', dest="mask3",
+                        help="use gt mask edge to weight the loss computation")
     parser.add_argument('-c', '--crop-size', metavar='C', type=int, default=512,
                         help='the size of random cropping', dest="crop")
-    parser.add_argument('-n', '--crop-size', type=str,
+    parser.add_argument('-n', '--name', type=str,
                         help='the name for wandb logging', dest="name")
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=1,
                         help='Batch size', dest='batchsize')
