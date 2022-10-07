@@ -110,7 +110,7 @@ class BasicDataset(Dataset):
         # merge line and flat
         flat_np = self.remove_alpha(flat_np)
         flat_np = flat_np * (1 - np.expand_dims(line_np[:, :, 3], axis = -1) / 255)
-        line_np = line_np[:, :, 3] # remove alpha channel, but yes, we use alpha channel as the line drawing
+        line_np = 255 - line_np[:, :, 3] # remove alpha channel, but yes, we use alpha channel as the line drawing
         shad_np = self.remove_alpha(shad_np, gray = True)
         # we need an additional thershold for this
         _, shad_np = cv2.threshold(shad_np, 127, 255, cv2.THRESH_BINARY)
@@ -158,6 +158,7 @@ class BasicDataset(Dataset):
         mask = self.to_tensor(mask_np / 255, False)
         mask_edge = self.to_tensor(mask_edge_np / 255, False)
         label = torch.Tensor([label])
+        assert line.shape == shad.shape
         # it returns tensor at last
         return flat, line, (shad, shad_d2x, shad_d4x, shad_d8x), mask, mask_edge, label
     
