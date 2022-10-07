@@ -131,7 +131,7 @@ def train_net(
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
     dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True, l1_loss = l1_loss)
-    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True, drop_last=False)
     val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=True)
     # we don't need valiation currently
     # val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
@@ -437,46 +437,46 @@ if __name__ == '__main__':
     # faster convolutions, but more memory
     # cudnn.benchmark = True
 
-    # try:
-    #     train_net(
-    #                 img_path = args.imgs,
-    #                 net = net,
-    #                 epochs = args.epochs,
-    #                 batch_size = args.batchsize,
-    #                 lr = args.lr,
-    #                 device = device,
-    #                 crop_size = args.crop,
-    #                 resize = args.resize,
-    #                 use_mask = [args.mask1, args.mask2, args.mask3],
-    #                 l1_loss = args.l1,
-    #                 name = args.name,
-    #                 progressive = args.progressive,
-    #                 ap = args.anisotropic_penalty
-    #               )
+    try:
+        train_net(
+                    img_path = args.imgs,
+                    net = net,
+                    epochs = args.epochs,
+                    batch_size = args.batchsize,
+                    lr = args.lr,
+                    device = device,
+                    crop_size = args.crop,
+                    resize = args.resize,
+                    use_mask = [args.mask1, args.mask2, args.mask3],
+                    l1_loss = args.l1,
+                    name = args.name,
+                    progressive = args.progressive,
+                    ap = args.anisotropic_penalty
+                  )
 
-    # # this is interesting, save model when keyborad interrupt
-    # except KeyboardInterrupt:
-    #     torch.save(net.state_dict(), './checkpoints/INTERRUPTED.pth')
-    #     logging.info('Saved interrupt')
-    #     try:
-    #         sys.exit(0)
-    #     except SystemExit:
-    #         os._exit(0)
+    # this is interesting, save model when keyborad interrupt
+    except KeyboardInterrupt:
+        torch.save(net.state_dict(), './checkpoints/INTERRUPTED.pth')
+        logging.info('Saved interrupt')
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
 
     '''for debug'''
-    train_net(
-                img_path = args.imgs,
-                net = net,
-                epochs = args.epochs,
-                batch_size = args.batchsize,
-                lr = args.lr,
-                device = device,
-                crop_size = args.crop,
-                resize = args.resize,
-                use_mask = [args.mask1, args.mask2, args.mask3],
-                l1_loss = args.l1,
-                name = args.name,
-                progressive = args.progressive,
-                ap = args.anisotropic_penalty
-            )
+    # train_net(
+    #             img_path = args.imgs,
+    #             net = net,
+    #             epochs = args.epochs,
+    #             batch_size = args.batchsize,
+    #             lr = args.lr,
+    #             device = device,
+    #             crop_size = args.crop,
+    #             resize = args.resize,
+    #             use_mask = [args.mask1, args.mask2, args.mask3],
+    #             l1_loss = args.l1,
+    #             name = args.name,
+    #             progressive = args.progressive,
+    #             ap = args.anisotropic_penalty
+    #         )
 
