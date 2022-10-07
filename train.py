@@ -22,7 +22,45 @@ from torch.nn import functional as F
 from torchvision import utils
 from PIL import Image
 
+# let's add anisotropic penalty
+def get_ij_kernel(i, j, size = 3):
+    assert i < size ** 2
+    assert j < size ** 2
+    assert i != j
+    k = np.zeros((3, 3))
+    k[i//3][i%3] = 1
+    k[j//3][j%3] = -1
+    return k
 
+def get_ap_kernel(size = 3):
+    '''
+    Given,
+        size, a integer for the convlution window size
+    Return 
+        a numpy array that is used for the anisotropic penalty convlution kernel
+    '''
+    kernels = []
+    for i in range(size**2):
+        for j in range(i+1, size**2):
+            kernels.append(get_ij_kernel(i, j, size = size))
+    kernel = np.stack(kernels, axis = 0)
+    return np.expand_dims(kernel, axis = 1)
+
+def anisotropic_penalty(pre, line, k = 3):
+    '''
+    compute the anisotropic penalty in paper:
+    https://openaccess.thecvf.com/content/ICCV2021/papers/Zhang_SmartShadow_Artistic_Shadow_Drawing_Tool_for_Line_Drawings_ICCV_2021_paper.pdf
+    '''
+    ap_kernel = get_ap_kernel(k)
+    ap_kernel = torch.Tensor(ap_kernel).float().to(pre.device)
+    pre_ap = F.conv2d(pre, ap_kernel, padding = 'same')
+    pre_ap = pre_ap.pow(2).sum(dim = 1)
+    line_ap = F.conv2d(line, ap_kernel, padding = 'same')
+    line_ap = line_ap.pow(2).sum(dim = 1)
+    line_ap = torch.exp(-line_ap/k**2)
+    loss = (pre_ap * line_ap).sum()
+    return loss
+    
 def focal_loss(pre, target, mask_gt = False, gamma = 5, mask_flat = None, mask_edge = None):
     
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
@@ -57,7 +95,6 @@ def focal_loss(pre, target, mask_gt = False, gamma = 5, mask_flat = None, mask_e
         if (weights_pos == 0).all() != True:
             mask = mask * (mask_edge_pos + mask_gt_pos * (weights_neg / (weights_pos + 1)) + mask_gt_neg)        
 
-
     ## create the focal loss mask
     pre_scores = torch.sigmoid(pre)
     pre_t = pre_scores * target + (1 - pre_scores) * (1 - target)
@@ -88,7 +125,8 @@ def train_net(
               resize = 1024,
               l1_loss = False,
               name = None,
-              progressive = False):
+              progressive = False,
+              ap = False):
 
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
@@ -162,9 +200,10 @@ def train_net(
         net.train()
         epoch_loss = 0
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
-            for imgs, gts_list, mask, mask_edge, label in train_loader:
+            for imgs, lines, gts_list, mask, mask_edge, label in train_loader:
                 gts, gts_d2x, gts_d4x, gts_d8x = gts_list
                 imgs = imgs.to(device=device, dtype=torch.float32)
+                lines = lines.to(device=device, dtype=torch.float32)
                 gts = gts.to(device=device, dtype=torch.float32)
                 gts_d2x = gts_d2x.to(device=device, dtype=torch.float32)
                 gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
@@ -176,22 +215,28 @@ def train_net(
                 # forward
                 pred, pred_d2x, pred_d4x, pred_d8x = net(imgs, label)
                 
+                loss = 0
                 if l1_loss:
                     pred = denormalize(pred)
                     loss = criterion(pred, gts)
                 else:
-                    mask_gt = mask1_flag
-                    mask_flat = mask if mask2_flag else None
-                    mask_edge = mask_edge if mask3_flag else None
-                    loss = criterion(pred, gts, mask_gt = mask_gt, gamma = 5, 
-                        mask_flat = mask_flat, mask_edge = mask_edge)
                     if progressive:
                         # let's predict the shading progressively
                         # so we need to figure out how many epoches is needs for each leavel
                         loss = loss + criterion(pred_d2x, gts_d2x, mask_gt = mask_gt, gamma = 5)
                         loss = loss + criterion(pred_d4x, gts_d4x, mask_gt = mask_gt, gamma = 5)
                         loss = loss + criterion(pred_d8x, gts_d8x, mask_gt = mask_gt, gamma = 5)
+                    else:
+                        mask_gt = mask1_flag
+                        mask_flat = mask if mask2_flag else None
+                        mask_edge = mask_edge if mask3_flag else None
+                        loss_focal = criterion(pred, gts, mask_gt = mask_gt, gamma = 5, 
+                            mask_flat = mask_flat, mask_edge = mask_edge)
+                        loss = loss + loss_focal
 
+                if ap:
+                    loss_ap = anisotropic_penalty(pred, lines)
+                    loss = loss + 0.0005 * loss_ap
                 # record loss
                 epoch_loss += loss.item()
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
@@ -207,7 +252,8 @@ def train_net(
                 
                 # record the loss more frequently
                 if global_step % 20 == 0 and args.log:
-                    wandb.log({'Total Loss': loss.item()}) 
+                    wandb.log({'Focal Loss': loss_focal.item()}) 
+                    wandb.log({'Anisotropic Penalty': loss_ap.item()}) 
                     # if mask1_flag or mask2_flag:
                     #     wandb.log({'Loss outside flat/gt mask': loss1.item()}) 
                     #     wandb.log({'Loss inside flat/flat only/gt mask)': loss2.item()}) 
@@ -254,7 +300,7 @@ def train_net(
                             val_counter = 0
                             val_figs = []
                             dims = None
-                            for val_img, val_gt_list, _, _, label in val_loader:
+                            for val_img, val_lines, val_gt_list, _, _, label in val_loader:
                                 if val_counter > 5: break
                                 # predict
                                 val_gt, _, _, _ = val_gt_list
@@ -304,6 +350,8 @@ def get_args():
     parser.add_argument('-e', '--epochs', metavar='E', type=int, default=90000,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-m', '--multi-gpu', action='store_true')
+    parser.add_argument('-a', action='store_true', dest='anisotropic_penalty', 
+                        default='use anisotropic penalty')
     parser.add_argument('-w1', '--weighted-flat', action='store_true', dest="mask1",
                         help="use flat mask to weight the loss computation")
     parser.add_argument('-w2', '--weighted-gt', action='store_true', dest="mask2",
@@ -372,7 +420,8 @@ if __name__ == '__main__':
                     use_mask = [args.mask1, args.mask2, args.mask3],
                     l1_loss = args.l1,
                     name = args.name,
-                    progressive = args.progressive
+                    progressive = args.progressive,
+                    ap = args.anisotropic_penalty
                   )
 
     # this is interesting, save model when keyborad interrupt

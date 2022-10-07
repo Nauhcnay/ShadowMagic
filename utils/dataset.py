@@ -109,12 +109,8 @@ class BasicDataset(Dataset):
 
         # merge line and flat
         flat_np = self.remove_alpha(flat_np)
-        # maybe thershold is not a good idea here...
-        # line_th = cv2.adaptiveThreshold(255 - line_np[:, :, 3] ,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
-        #     cv2.THRESH_BINARY,11,2)
-        # line_mask = np.expand_dims(line_th == 0, axis = -1)
-        # flat_np[np.repeat(line_mask, 3, -1)] = 0
         flat_np = flat_np * (1 - np.expand_dims(line_np[:, :, 3], axis = -1) / 255)
+        line_np = line_np[:, :, 3] # remove alpha channel, but yes, we use alpha channel as the line drawing
         shad_np = self.remove_alpha(shad_np, gray = True)
         # we need an additional thershold for this
         _, shad_np = cv2.threshold(shad_np, 127, 255, cv2.THRESH_BINARY)
@@ -134,10 +130,11 @@ class BasicDataset(Dataset):
         # if True:
         if self.val == False:
             # augment image, let's do this in numpy!
-            img_list, label = self.random_flip([flat_np, shad_np, mask_np, mask_edge_np], label)
-            flat_np, shad_np, mask_np, mask_edge_np = img_list
+            img_list, label = self.random_flip([flat_np, line_np, shad_np, mask_np, mask_edge_np], label)
+            flat_np, line_np, shad_np, mask_np, mask_edge_np = img_list
             bbox = self.random_bbox(flat_np)
-            flat_np, shad_np, mask_np, mask_edge_np = self.crop([flat_np, shad_np, mask_np, mask_edge_np], bbox)
+            flat_np, line_np, shad_np, mask_np, mask_edge_np = self.crop([flat_np, line_np, shad_np, mask_np, mask_edge_np], bbox)
+
         
         # clip values
         flat_np = flat_np.clip(0, 255)
@@ -150,6 +147,7 @@ class BasicDataset(Dataset):
 
         # convert to tensor, and the following process should all be done by cuda
         flat = self.to_tensor(flat_np / 255)
+        line = self.to_tensor(line_np.copy(), False)
         if self.l1_loss:
             shad = self.to_tensor(1 - shad_np / 255) # if we use l1 loss, let's treat the shading as image
         else:
@@ -161,7 +159,7 @@ class BasicDataset(Dataset):
         mask_edge = self.to_tensor(mask_edge_np / 255, False)
         label = torch.Tensor([label])
         # it returns tensor at last
-        return flat, (shad, shad_d2x, shad_d4x, shad_d8x), mask, mask_edge, label
+        return flat, line, (shad, shad_d2x, shad_d4x, shad_d8x), mask, mask_edge, label
     
     def down_sample(self, img):
         dw = int(img.shape[1] / 2)
