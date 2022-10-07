@@ -93,7 +93,7 @@ def train_net(
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
     dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True, l1_loss = l1_loss)
-    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=False)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True, drop_last=False)
     val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=True)
     # we don't need valiation currently
     # val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
@@ -186,6 +186,8 @@ def train_net(
                     loss = criterion(pred, gts, mask_gt = mask_gt, gamma = 5, 
                         mask_flat = mask_flat, mask_edge = mask_edge)
                     if progressive:
+                        # let's predict the shading progressively
+                        # so we need to figure out how many epoches is needs for each leavel
                         loss = loss + criterion(pred_d2x, gts_d2x, mask_gt = mask_gt, gamma = 5)
                         loss = loss + criterion(pred_d4x, gts_d4x, mask_gt = mask_gt, gamma = 5)
                         loss = loss + criterion(pred_d8x, gts_d8x, mask_gt = mask_gt, gamma = 5)
@@ -197,7 +199,8 @@ def train_net(
                 # back propagate
                 optimizer.zero_grad()
                 loss.backward()
-                nn.utils.clip_grad_value_(net.parameters(), 0.1)
+                # why we need grad clipping? 
+                # nn.utils.clip_grad_value_(net.parameters(), 0.1)
                 optimizer.step()
 
                 pbar.update(imgs.shape[0])
@@ -213,7 +216,7 @@ def train_net(
 
                 # record the image output 
                 # if True:
-                if global_step % 100 == 0:
+                if global_step % 200 == 0:
                     imgs = denormalize(imgs)
                     if l1_loss:
                         gts = denormalize(gts)

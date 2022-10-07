@@ -20,8 +20,9 @@ KEY_TO_DIR = {"type1":"right", "type2":"left", "type3":"back", "type4":"top", "�
 
 # convert layer name to english
 KOR_TO_ENG = {"선화":"line", "레이어":"shadow", "밑색":"flat", "용지":"background", "배경":"background",
-    "레이어 1":"shadow", "레이어 2":"background", "layer 1":"background", "layer 2":"background", "그림자":"shadow", "인물 밑색":"flat", "펜터치":"line"}
-KOR_TO_ENG_S = {"선화":"line", "레이어":"shadow", "밑색":"flat", "용지":"background", "레이어 2":"shadow", "레이어 1":"background"}
+    "레이어 1":"shadow", "레이어 2":"background", "layer 1":"background", "layer 2":"background", "그림자":"shadow", 
+    "인물 밑색":"flat", "펜터치":"line"}
+KOR_TO_ENG_S = {"선화":"line", "레이어":"shadow", "밑색":"flat", "용지":"background", "레이어 2":"shadow", "레이어 1":"background","그림자":"shadow"}
 
 NAME_LIST = ["FULL01", "FULL02", "FULL03", "FULL04", "FULL05", "FULL06", "FULL07", "FULL08", "FACE03"]
 
@@ -33,7 +34,7 @@ def is_different_lname(fname):
 
 def layer_to_png(psd, i, lname, png, size):
     h, w = size
-    if lname == "background": return None# we don't need background
+    if "background" in lname or "bakcground" in lname: return None# we don't need background
     if os.path.exists(png.replace(".png", "_%s.png"%lname)): return None
     img = psd[i].numpy()
     # get offset of current layer
@@ -89,8 +90,9 @@ def psd_to_pngs(path_psd, path_pngs, counter, debug = False):
                     light_dir = KEY_TO_DIR[name.split("-")[-1].lower()]
                 else:
                     light_dir = KEY_TO_DIR[name.split("_")[-1].lower()]
-            if "D3" in path:
+            if "D3" in path or "D4" in path:
                 light_dir = KEY_TO_DIR[name.split("_")[2].lower()]
+
             else:
                 raise ValueError("the current folder has not been ready for parsing")
             psd = join(path, psd)   
@@ -125,7 +127,7 @@ def psd_to_pngs(path_psd, path_pngs, counter, debug = False):
                             lname = psd_f[i].name.lower()
                             layer_to_png(psd_f, i, lname, png, (h, w))        
                     else:
-                        if is_different_lname(name):
+                        if is_different_lname(name) or "D4" in path:
                             lname = KOR_TO_ENG_S.get(psd_f[i].name.lower(), psd_f[i].name.lower()).lower()
                             layer_to_png(psd_f, i, lname, png, (h, w))
                         else:
@@ -303,9 +305,9 @@ def png_refine(path_pngs, path_output):
 if __name__ == "__main__":
     # '''psd layer to separate png images'''
     # PATH_TO_PSD = ["../dataset/raw/Natural", "../dataset/raw/NEW", "../dataset/raw/REFINED"]
-    # PATH_TO_PSD = ["../dataset/raw/D3"]
+    # PATH_TO_PSD = ["../dataset/raw/D4"]
     # OUT_PATH = "../dataset/Natural_png_rough"
-    # psd_to_pngs(PATH_TO_PSD, OUT_PATH, 255, debug = False)
+    # psd_to_pngs(PATH_TO_PSD, OUT_PATH, 335, debug = False)
     
 
     '''correct shading layers'''
