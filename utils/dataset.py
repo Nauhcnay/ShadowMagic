@@ -179,8 +179,9 @@ class BasicDataset(Dataset):
         t, l, b, r = bbox
         res = []
         for img in imgs:
-            res.append(img[t:b, l:r])
-            assert img.shape == (512, 512)
+            res.append(img[t:b, l:r, ...])
+            assert img[t:b, l:r, ...].shape[0] == 512
+            assert img[t:b, l:r, ...].shape[1] == 512
         return res
 
     def random_flip(self, imgs, label, p = 0.5):
