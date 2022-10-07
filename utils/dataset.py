@@ -180,6 +180,7 @@ class BasicDataset(Dataset):
         res = []
         for img in imgs:
             res.append(img[t:b, l:r])
+            assert img.shape == (512, 512)
         return res
 
     def random_flip(self, imgs, label, p = 0.5):
