@@ -122,6 +122,7 @@ class BasicDataset(Dataset):
         h, w = shad_np.shape
         h, w = self.resize_hw(h, w)
         flat_np = cv2.resize(flat_np, (w, h), interpolation = cv2.INTER_AREA)
+        line_np = cv2.resize(line_np, (w, h), interpolation = cv2.INTER_AREA)
         shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_NEAREST)
         mask_np = cv2.resize(mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
         mask_edge_np = cv2.resize(mask_edge_np, (w, h), interpolation = cv2.INTER_NEAREST)
@@ -180,8 +181,6 @@ class BasicDataset(Dataset):
         res = []
         for img in imgs:
             res.append(img[t:b, l:r, ...])
-            assert img[t:b, l:r, ...].shape[0] == 512
-            assert img[t:b, l:r, ...].shape[1] == 512
         return res
 
     def random_flip(self, imgs, label, p = 0.5):
