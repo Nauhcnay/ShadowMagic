@@ -196,9 +196,11 @@ def train_net(
     os.makedirs(model_folder)
 
     # start training
+    progressive_stage = 0
     for epoch in range(epochs):
         net.train()
         epoch_loss = 0
+        print("Log:\tcurrent progressive level is %d"%progressive_stage)
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             for imgs, lines, gts_list, mask, mask_edge, label in train_loader:
                 gts, gts_d2x, gts_d4x, gts_d8x = gts_list
@@ -216,16 +218,35 @@ def train_net(
                 pred, pred_d2x, pred_d4x, pred_d8x = net(imgs, label)
                 
                 loss = 0
-                if l1_loss:
-                    pred = denormalize(pred)
-                    loss = criterion(pred, gts)
+                if progressive:
+                    # let's predict the shading progressively
+                    # so we need to figure out how many epoches is needs for each leavel
+                    # let's make some experiments first, 
+                    if progressive_stage == 0:
+                        pred = pred_d8x
+                        gts = gts_d8x
+                        loss = loss + criterion(pred_d8x, gts_d8x, gamma = 5)
+                    elif progressive_stage == 1:
+                        loss = loss + 0.1 * criterion(pred_d8x, gts_d8x, gamma = 5)
+                        loss = loss + criterion(pred_d4x, gts_d4x, gamma = 5)
+                        pred = pred_d4x
+                        gts = gts_d4x
+                    elif progressive_stage == 2:
+                        loss = loss + 0.1 * criterion(pred_d8x, gts_d8x, gamma = 5)
+                        loss = loss + 0.1 * criterion(pred_d4x, gts_d4x, gamma = 5)
+                        loss = loss + criterion(pred_d2x, gts_d2x, gamma = 5)
+                        pred = pred_d2x
+                        gts = gts_d2x
+                    else:
+                        loss = loss + 0.1 * criterion(pred_d8x, gts_d8x, gamma = 5)
+                        loss = loss + 0.1 * criterion(pred_d4x, gts_d4x, gamma = 5)
+                        loss = loss + 0.1 * criterion(pred_d2x, gts_d2x, gamma = 5)
+                        loss_focal = criterion(pred, gts, gamma = 5)
+                        loss = loss + loss_focal
                 else:
-                    if progressive:
-                        # let's predict the shading progressively
-                        # so we need to figure out how many epoches is needs for each leavel
-                        loss = loss + criterion(pred_d2x, gts_d2x, mask_gt = mask_gt, gamma = 5)
-                        loss = loss + criterion(pred_d4x, gts_d4x, mask_gt = mask_gt, gamma = 5)
-                        loss = loss + criterion(pred_d8x, gts_d8x, mask_gt = mask_gt, gamma = 5)
+                    if l1_loss:
+                        pred = denormalize(pred)
+                        loss = criterion(pred, gts)
                     else:
                         mask_gt = mask1_flag
                         mask_flat = mask if mask2_flag else None
@@ -234,9 +255,9 @@ def train_net(
                             mask_flat = mask_flat, mask_edge = mask_edge)
                         loss = loss + loss_focal
 
-                if ap:
-                    loss_ap = anisotropic_penalty(pred, lines)
-                    loss = loss + 0.0005 * loss_ap
+                    if ap:
+                        loss_ap = anisotropic_penalty(pred, lines)
+                        loss = loss + 0.0005 * loss_ap
                 # record loss
                 epoch_loss += loss.item()
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
@@ -247,13 +268,16 @@ def train_net(
                 # why we need grad clipping? 
                 # nn.utils.clip_grad_value_(net.parameters(), 0.1)
                 optimizer.step()
-
-                pbar.update(imgs.shape[0])
+                pbar.update(batch_size)
                 
                 # record the loss more frequently
                 if global_step % 20 == 0 and args.log:
-                    wandb.log({'Focal Loss': loss_focal.item()}) 
-                    wandb.log({'Anisotropic Penalty': loss_ap.item()}) 
+                    if progressive:
+                        wandb.log({"Progressive Loss": loss.item()})
+                    else:
+                        wandb.log({'Focal Loss': loss_focal.item()}) 
+                        if ap:
+                            wandb.log({'Anisotropic Penalty': loss_ap.item()}) 
                     # if mask1_flag or mask2_flag:
                     #     wandb.log({'Loss outside flat/gt mask': loss1.item()}) 
                     #     wandb.log({'Loss inside flat/flat only/gt mask)': loss2.item()}) 
@@ -262,16 +286,22 @@ def train_net(
 
                 # record the image output 
                 # if True:
-                if global_step % 200 == 0:
+                if global_step % 500 == 0:
                     imgs = denormalize(imgs)
                     if l1_loss:
                         gts = denormalize(gts)
                         pred = denormalize(pred)
                     else:
                         pred = torch.sigmoid(pred)
-                    sample = torch.cat((imgs,  pred.repeat(1, 3, 1, 1),
-                        (pred > 0.7).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
-                        gts.repeat(1, 3, 1, 1)), dim = 0)
+                    if progressive:
+                        # we don't need to down sample the 
+                        sample = torch.cat((pred.repeat(1, 3, 1, 1),
+                            (pred > 0.7).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
+                            gts.repeat(1, 3, 1, 1)), dim = 0)
+                    else:
+                        sample = torch.cat((imgs,  pred.repeat(1, 3, 1, 1),
+                            (pred > 0.7).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
+                            gts.repeat(1, 3, 1, 1)), dim = 0)
                     result_folder = os.path.join("./results/train/", dt_formatted)
                     if os.path.exists(result_folder) is False:
                         logging.info("Creating %s"%str(result_folder))
@@ -289,47 +319,47 @@ def train_net(
                     if args.log:
                         fig_res = wandb.Image(np.array(
                             Image.open(os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"))))
-                        wandb.log({'Total Loss': loss.item()}) 
                         wandb.log({'Train Result': fig_res})
 
-                        # let's also run a validation test
-                        logging.info('Starting Validation')
-                        net.eval()
-                        with torch.no_grad():
-                            # read validation samples
-                            val_counter = 0
-                            val_figs = []
-                            dims = None
-                            for val_img, val_lines, val_gt_list, _, _, label in val_loader:
-                                if val_counter > 5: break
-                                # predict
-                                val_gt, _, _, _ = val_gt_list
-                                val_img = val_img.to(device=device, dtype=torch.float32)
-                                val_gt = val_gt.to(device=device, dtype=torch.float32)
-                                label = label.to(device=device, dtype=torch.float32)
-                                val_pred, _, _, _ = net(val_img, label)
-                                if l1_loss:
-                                    val_gt = denormalize(val_gt)
-                                    val_pred = denormalize(val_pred)
-                                else:
-                                    val_pred = torch.sigmoid(val_pred)
-                                # save result
-                                val_img = tensor_to_img(denormalize(val_img))
-                                val_pred_1 = tensor_to_img((val_pred > 0.7).repeat(1, 3, 1, 1))
-                                val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
-                                val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
-                                val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
-                                val_sample = np.concatenate((val_img, val_pred, val_pred_1, val_pred_2, val_gt), axis = 1)
-                                if val_counter == 0:
-                                    dims = (val_sample.shape[1], val_sample.shape[0])
-                                else:
-                                    assert dims is not None
-                                    val_sample = cv2.resize(val_sample, dims, interpolation = cv2.INTER_AREA)
-                                val_counter += 1
-                                val_figs.append(val_sample)    
-                            val_figs = np.concatenate(val_figs, axis = 0)
-                            val_fig_res = wandb.Image(val_figs)
-                            wandb.log({"Val Result":val_fig_res})
+                        if progressive_stage >= 3: 
+                            # let's also run a validation test
+                            logging.info('Starting Validation')
+                            net.eval()
+                            with torch.no_grad():
+                                # read validation samples
+                                val_counter = 0
+                                val_figs = []
+                                dims = None
+                                for val_img, val_lines, val_gt_list, _, _, label in val_loader:
+                                    if val_counter > 5: break
+                                    # predict
+                                    val_gt, _, _, _ = val_gt_list
+                                    val_img = val_img.to(device=device, dtype=torch.float32)
+                                    val_gt = val_gt.to(device=device, dtype=torch.float32)
+                                    label = label.to(device=device, dtype=torch.float32)
+                                    val_pred, _, _, _ = net(val_img, label)
+                                    if l1_loss:
+                                        val_gt = denormalize(val_gt)
+                                        val_pred = denormalize(val_pred)
+                                    else:
+                                        val_pred = torch.sigmoid(val_pred)
+                                    # save result
+                                    val_img = tensor_to_img(denormalize(val_img))
+                                    val_pred_1 = tensor_to_img((val_pred > 0.7).repeat(1, 3, 1, 1))
+                                    val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
+                                    val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
+                                    val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
+                                    val_sample = np.concatenate((val_img, val_pred, val_pred_1, val_pred_2, val_gt), axis = 1)
+                                    if val_counter == 0:
+                                        dims = (val_sample.shape[1], val_sample.shape[0])
+                                    else:
+                                        assert dims is not None
+                                        val_sample = cv2.resize(val_sample, dims, interpolation = cv2.INTER_AREA)
+                                    val_counter += 1
+                                    val_figs.append(val_sample)    
+                                val_figs = np.concatenate(val_figs, axis = 0)
+                                val_fig_res = wandb.Image(val_figs)
+                                wandb.log({"Val Result":val_fig_res})
 
                 # update the global step
                 global_step += 1
@@ -347,7 +377,7 @@ def tensor_to_img(t):
 def get_args():
     parser = argparse.ArgumentParser(description='ShadowMagic Ver 0.1',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=90000,
+    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=5000,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-m', '--multi-gpu', action='store_true')
     parser.add_argument('-a', action='store_true', dest='anisotropic_penalty', 
@@ -364,7 +394,7 @@ def get_args():
                         help='the name for wandb logging', dest="name")
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=1,
                         help='Batch size', dest='batchsize')
-    parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.0001,
+    parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.00005,
                         help='Learning rate', dest='lr')
     parser.add_argument('-f', '--load', dest='load', type=str, default=False,
                         help='Load model from a .pth file')
