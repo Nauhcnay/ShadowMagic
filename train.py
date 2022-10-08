@@ -201,7 +201,8 @@ def train_net(
     for epoch in range(epochs):
         net.train()
         epoch_loss = 0
-        print("Log:\tcurrent progressive level is %d"%progressive_stage)
+        if progressive:
+            print("Log:\tcurrent progressive level is %d"%progressive_stage)
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             for imgs, lines, gts_list, mask, mask_edge, label in train_loader:
                 gts, gts_d2x, gts_d4x, gts_d8x = gts_list
@@ -322,7 +323,7 @@ def train_net(
                             Image.open(os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"))))
                         wandb.log({'Train Result': fig_res})
 
-                        if progressive_stage >= 3: 
+                        if progressive_stage >= 3 and progressive: 
                             # let's also run a validation test
                             logging.info('Starting Validation')
                             net.eval()
