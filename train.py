@@ -51,6 +51,7 @@ def anisotropic_penalty(pre, line, k = 3):
     compute the anisotropic penalty in paper:
     https://openaccess.thecvf.com/content/ICCV2021/papers/Zhang_SmartShadow_Artistic_Shadow_Drawing_Tool_for_Line_Drawings_ICCV_2021_paper.pdf
     '''
+    pre = torch.sigmoid(pre)
     ap_kernel = get_ap_kernel(k)
     ap_kernel = torch.Tensor(ap_kernel).float().to(pre.device)
     pre_ap = F.conv2d(pre, ap_kernel, padding = 'same')
