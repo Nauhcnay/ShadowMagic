@@ -257,7 +257,7 @@ def train_net(
 
                     if ap:
                         loss_ap = anisotropic_penalty(pred, lines)
-                        loss = loss + 0.0005 * loss_ap
+                        loss = loss + 1e-6 * loss_ap
                 # record loss
                 epoch_loss += loss.item()
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
