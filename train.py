@@ -323,7 +323,7 @@ def train_net(
                             Image.open(os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"))))
                         wandb.log({'Train Result': fig_res})
 
-                        if progressive_stage >= 3 and progressive: 
+                        if progressive_stage >= 3 or progressive is False: 
                             # let's also run a validation test
                             logging.info('Starting Validation')
                             net.eval()
