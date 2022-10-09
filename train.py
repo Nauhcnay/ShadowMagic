@@ -243,9 +243,15 @@ def train_net(
                         loss = loss + 0.1 * criterion(pred_d8x, gts_d8x, gamma = 5)
                         loss = loss + 0.1 * criterion(pred_d4x, gts_d4x, gamma = 5)
                         loss = loss + 0.1 * criterion(pred_d2x, gts_d2x, gamma = 5)
+                        mask_gt = mask1_flag
+                        mask_flat = mask if mask2_flag else None
+                        mask_edge = mask_edge if mask3_flag else None
                         loss_focal = criterion(pred, gts, mask_gt = mask_gt, gamma = 5, 
                             mask_flat = mask_flat, mask_edge = mask_edge)
                         loss = loss + loss_focal
+                        if ap:
+                            loss_ap = anisotropic_penalty(pred, lines)
+                            loss = loss + 5e-8 * loss_ap
                 else:
                     if l1_loss:
                         pred = denormalize(pred)
