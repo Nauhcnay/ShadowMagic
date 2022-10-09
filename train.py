@@ -243,7 +243,8 @@ def train_net(
                         loss = loss + 0.1 * criterion(pred_d8x, gts_d8x, gamma = 5)
                         loss = loss + 0.1 * criterion(pred_d4x, gts_d4x, gamma = 5)
                         loss = loss + 0.1 * criterion(pred_d2x, gts_d2x, gamma = 5)
-                        loss_focal = criterion(pred, gts, gamma = 5)
+                        loss_focal = criterion(pred, gts, mask_gt = mask_gt, gamma = 5, 
+                            mask_flat = mask_flat, mask_edge = mask_edge)
                         loss = loss + loss_focal
                 else:
                     if l1_loss:
@@ -365,6 +366,8 @@ def train_net(
 
                 # update the global step
                 global_step += 1
+                if (epoch + 1) % 550 == 0:
+                    progressive_stage += 1
         # save model
         if save_cp and epoch % 100 == 0:
             # save trying result in single folder each time
