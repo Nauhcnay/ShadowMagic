@@ -46,13 +46,13 @@ def get_ap_kernel(size = 3):
     kernel = np.stack(kernels, axis = 0)
     return np.expand_dims(kernel, axis = 1)
 
-def anisotropic_penalty(pre, line, k = 3):
+def anisotropic_penalty(pre, line, size = 3, k = 1):
     '''
     compute the anisotropic penalty in paper:
     https://openaccess.thecvf.com/content/ICCV2021/papers/Zhang_SmartShadow_Artistic_Shadow_Drawing_Tool_for_Line_Drawings_ICCV_2021_paper.pdf
     '''
     pre = torch.sigmoid(pre)
-    ap_kernel = get_ap_kernel(k)
+    ap_kernel = get_ap_kernel(size)
     ap_kernel = torch.Tensor(ap_kernel).float().to(pre.device)
     pre_ap = F.conv2d(pre, ap_kernel, padding = 'same')
     pre_ap = pre_ap.pow(2).sum(dim = 1)
@@ -266,7 +266,7 @@ def train_net(
 
                     if ap:
                         loss_ap = anisotropic_penalty(pred, lines)
-                        loss = loss + 5e-8 * loss_ap
+                        loss = loss + 1e-7 * loss_ap
                 # record loss
                 epoch_loss += loss.item()
                 pbar.set_postfix(**{'loss (batch)': loss.item()})

@@ -116,8 +116,8 @@ class BasicDataset(Dataset):
         _, shad_np = cv2.threshold(shad_np, 127, 255, cv2.THRESH_BINARY)
 
         # create edge mask
-        mask_edge_np = cv2.Canny(shad_np, 100, 200)
-        mask_edge_np = cv2.dilate(mask_edge_np, self.kernel, iterations = 2)
+        mask_edge_np = cv2.Canny(shad_np, 0, 20)
+        mask_edge_np = cv2.dilate(mask_edge_np, self.kernel, iterations = 1)
         # resize image, now we still have to down sample the input a little bit for a easy training
         h, w = shad_np.shape
         h, w = self.resize_hw(h, w)
@@ -157,11 +157,11 @@ class BasicDataset(Dataset):
             shad_d4x = self.to_tensor(1 - shad_np_d4x / 255, False)
             shad_d8x = self.to_tensor(1 - shad_np_d8x / 255, False)
         mask = self.to_tensor(mask_np / 255, False)
-        mask_edge = self.to_tensor(mask_edge_np / 255, False)
+        mask_edge = self.to_tensor(1 - mask_edge_np / 255, False)
         label = torch.Tensor([label])
         assert line.shape == shad.shape
         # it returns tensor at last
-        return flat, line, (shad, shad_d2x, shad_d4x, shad_d8x), mask, mask_edge, label
+        return flat, line * mask_edge, (shad, shad_d2x, shad_d4x, shad_d8x), mask, mask_edge, label
     
     def down_sample(self, img):
         dw = int(img.shape[1] / 2)
