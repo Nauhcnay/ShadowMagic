@@ -201,7 +201,7 @@ class BasicDataset(Dataset):
         dice = np.random.uniform()
         size = self.resize
         if dice < random_resize:
-            size = int(size / 2)
+            size = int(size / 1.5)
         # we resize the shorter edge to the target size
         if h > w:
             ratio =  h / w
