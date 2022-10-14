@@ -90,7 +90,7 @@ def psd_to_pngs(path_psd, path_pngs, counter, debug = False):
                     light_dir = KEY_TO_DIR[name.split("-")[-1].lower()]
                 else:
                     light_dir = KEY_TO_DIR[name.split("_")[-1].lower()]
-            if "D3" in path or "D4" in path:
+            if "D3" in path or "D4" in path or "D5" in path:
                 light_dir = KEY_TO_DIR[name.split("_")[2].lower()]
 
             else:
@@ -305,9 +305,9 @@ def png_refine(path_pngs, path_output):
 if __name__ == "__main__":
     # '''psd layer to separate png images'''
     # PATH_TO_PSD = ["../dataset/raw/Natural", "../dataset/raw/NEW", "../dataset/raw/REFINED"]
-    # PATH_TO_PSD = ["../dataset/raw/D4"]
+    # PATH_TO_PSD = ["../dataset/raw/D5"]
     # OUT_PATH = "../dataset/Natural_png_rough"
-    # psd_to_pngs(PATH_TO_PSD, OUT_PATH, 335, debug = False)
+    # psd_to_pngs(PATH_TO_PSD, OUT_PATH, 415, debug = False)
     
 
     '''correct shading layers'''

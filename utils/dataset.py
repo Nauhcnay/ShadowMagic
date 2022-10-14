@@ -120,7 +120,7 @@ class BasicDataset(Dataset):
         mask_edge_np = cv2.dilate(mask_edge_np, self.kernel, iterations = 1)
         # resize image, now we still have to down sample the input a little bit for a easy training
         h, w = shad_np.shape
-        h, w = self.resize_hw(h, w)
+        h, w = self.resize_hw(h, w, random_resize = 0.3)
         flat_np = cv2.resize(flat_np, (w, h), interpolation = cv2.INTER_AREA)
         line_np = cv2.resize(line_np, (w, h), interpolation = cv2.INTER_AREA)
         shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_NEAREST)
@@ -161,7 +161,7 @@ class BasicDataset(Dataset):
         label = torch.Tensor([label])
         assert line.shape == shad.shape
         # it returns tensor at last
-        return flat, line * mask_edge, (shad, shad_d2x, shad_d4x, shad_d8x), mask, mask_edge, label
+        return flat, mask_edge, (shad, shad_d2x, shad_d4x, shad_d8x), mask, mask_edge, label
     
     def down_sample(self, img):
         dw = int(img.shape[1] / 2)
@@ -197,16 +197,20 @@ class BasicDataset(Dataset):
             flipped = imgs
         return flipped, label
     
-    def resize_hw(self, h, w):
+    def resize_hw(self, h, w, random_resize = 0.3):
+        dice = np.random.uniform()
+        size = self.resize
+        if dice < random_resize:
+            size = int(size / 2)
         # we resize the shorter edge to the target size
         if h > w:
             ratio =  h / w
-            h = int(self.resize * ratio)
-            w = self.resize
+            h = int(size * ratio)
+            w = size
         else:
             ratio = w / h
-            w = int(self.resize * ratio)
-            h = self.resize
+            w = int(size * ratio)
+            h = size
         return h, w
 
     def to_tensor(self, img_np, normalize = True):
