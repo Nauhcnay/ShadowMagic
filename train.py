@@ -62,51 +62,26 @@ def anisotropic_penalty(pre, line, size = 3, k = 1):
     loss = (pre_ap * line_ap).sum()
     return loss
     
-def weighted_l1_loss(pre, target, mask_gt = False, gamma = 5, mask_flat = None, mask_edge = None):
-    # need to re-write this function
+def weighted_bce_loss(pre, target, mask_flat):
+    # compute loss map
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
-    mask = 1
-    if mask_gt:
-        ## create the weight mask from the ground truth
-        mask_pos = (target == 1).float()
-        mask_neg = (target == 0).float()
-        weights_pos = mask_pos.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
-        weights_neg = mask_neg.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
-        # let's assume the weight for negative samples are always 1, so the weight for positive samples will adaptively change
-        if (weights_pos == 0).all():
-            mask = mask * (mask_pos + mask_neg)    
-        else:
-            mask = mask * (mask_pos * (weights_neg / (weights_pos + 1)) + mask_neg)
-
-    if mask_flat is not None:
-        # we increase the weight inside the mask by 10 times, reduce the weight outside the mask by 0.1 times
-        mask_pos = mask_flat * 2
-        mask_neg = 1 - mask_flat
-        mask = mask * (mask_pos + mask_neg)
-
-    if mask_edge is not None:
-        mask_edge_pos = mask_edge * 50
-        mask_gt_pos = (target == 1).float()
-        mask_gt_pos = (mask_gt_pos - mask_edge_pos).clamp(0, 1)
-        mask_gt_neg = (target == 0).float()
-        mask_gt_neg = (mask_gt_neg - mask_edge_pos).clamp(0, 1)
-        weights_pos = mask_gt_pos.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
-        weights_neg = mask_gt_neg.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
-        # let's assume the weight for negative samples are always 1, so the weight for positive samples will adaptively change
-        if (weights_pos == 0).all() != True:
-            mask = mask * (mask_edge_pos + mask_gt_pos * (weights_neg / (weights_pos + 1)) + mask_gt_neg)        
-
-    ## create the focal loss mask
-    pre_scores = torch.sigmoid(pre)
-    pre_t = pre_scores * target + (1 - pre_scores) * (1 - target)
-
-    if mask is not None:
-        ## reduce the weight for very confident prediction results
-        bce_loss = bce_loss * mask * ((1 - pre_t) ** gamma)
-    else:
-        bce_loss = bce_loss * ((1 - pre_t) ** gamma)
-
-    return bce_loss.mean()
+    # compute loss mask
+    weights = [0.5, 1, 1.5]
+    mask_pre = torch.sigmoid(pre) > 0.5
+    mask_in = mask_flat.bool()
+    mask_out = torch.logical_not(mask_in)
+    mask_out_correct = torch.logical_and(mask_out, torch.logical_not(mask_pre))
+    mask_out_wrong = torch.logical_and(mask_out, mask_pre)
+    masks = [mask_out_correct, mask_out_wrong, mask_in]
+    # compute final loss
+    loss = 0
+    avg = 0
+    for i in range(len(masks)):
+        if masks[i].sum() > 0:
+            loss = loss + bce_loss[masks[i]].mean() * weights[i] 
+            avg += 1
+    avg = 1 if avg == 0 else avg
+    return loss / avg
 
 def denormalize(img):
     # denormalize
@@ -116,7 +91,6 @@ def train_net(
               img_path,
               net,
               device,
-              use_mask = [True, False, False],
               epochs=999,
               batch_size=1,
               lr=0.001,
@@ -126,7 +100,7 @@ def train_net(
               resize = 1024,
               l1_loss = False,
               name = None,
-              progressive = False,
+              drop_out = False,
               ap = False):
 
     # create dataloader
@@ -143,16 +117,6 @@ def train_net(
     # display train summarys
     global_step = 0
     
-    mask1_flag, mask2_flag, mask3_flag = use_mask
-    mask_str = ""
-    if mask1_flag:
-        mask_str += "Flat"
-    if mask2_flag:
-        mask_str += ", GT" if mask_str != "" else "GT"
-    if mask3_flag:
-        mask_str += ", Edge" if mask_str != "" else "Edge"
-    if mask_str == "":
-        mask_str = False
 
     logging.info(f'''Starting training:
         Epochs:          {epochs}
@@ -162,21 +126,21 @@ def train_net(
         Checkpoints:     {save_cp}
         Device:          {device.type}
         Crop size:       {crop_size}
-        Use Mask:        {mask_str}
+        Drop Out:        {drop_out}
         Loss:            {"L1" if l1_loss else "BCE"}
     ''')
 
     # not sure which optimizer will be better
     #optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
     optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
-    
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones = [200, 400], gamma = 0.1, verbose = True)
     # create the loss function
     # the task is in fact a binary classification problem
     if l1_loss:
         criterion = nn.L1Loss()
     else:
         # let's use the focal loss instead of the BCE loss directly
-        criterion = weighted_l1_loss
+        criterion = weighted_bce_loss
     
     # start logging
     if args.log:
@@ -196,14 +160,11 @@ def train_net(
     model_folder = os.path.join("./checkpoints", dt_formatted)
     os.makedirs(model_folder)
 
-    # start training
-    progressive_stage = 0
     for epoch in range(epochs):
-        net.train()
-        epoch_loss = 0
-        if progressive:
-            print("Log:\tcurrent progressive level is %d"%progressive_stage)
+        # train
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
+            net.train()
+            epoch_loss = 0
             for imgs, lines, gts_list, flat_mask, mask_edge, label in train_loader:
                 gts, gts_d2x, gts_d4x, gts_d8x = gts_list
                 imgs = imgs.to(device=device, dtype=torch.float32)
@@ -213,109 +174,57 @@ def train_net(
                 gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
                 gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
                 flat_mask = flat_mask.to(device=device, dtype=torch.float32)
-                mask_edge = mask_edge.to(device=device, dtype=torch.float32)
+                # mask_edge = mask_edge.to(device=device, dtype=torch.float32)
                 label = label.to(device=device, dtype=torch.float32)
 
                 # forward
                 pred, pred_d2x, pred_d4x, pred_d8x = net(imgs, label)
                 
+                # compute loss
                 loss = 0
-                if progressive:
-                    # let's predict the shading progressively
-                    # so we need to figure out how many epoches is needs for each leavel
-                    # let's make some experiments first, 
-                    if progressive_stage == 0:
-                        pred = pred_d8x
-                        gts = gts_d8x
-                        loss = loss + criterion(pred_d8x, gts_d8x, gamma = 5)
-                    elif progressive_stage == 1:
-                        loss = loss + 0.1 * criterion(pred_d8x, gts_d8x, gamma = 5)
-                        loss = loss + criterion(pred_d4x, gts_d4x, gamma = 5)
-                        pred = pred_d4x
-                        gts = gts_d4x
-                    elif progressive_stage == 2:
-                        loss = loss + 0.1 * criterion(pred_d8x, gts_d8x, gamma = 5)
-                        loss = loss + 0.1 * criterion(pred_d4x, gts_d4x, gamma = 5)
-                        loss = loss + criterion(pred_d2x, gts_d2x, gamma = 5)
-                        pred = pred_d2x
-                        gts = gts_d2x
-                    else:
-                        loss = loss + 0.1 * criterion(pred_d8x, gts_d8x, gamma = 5)
-                        loss = loss + 0.1 * criterion(pred_d4x, gts_d4x, gamma = 5)
-                        loss = loss + 0.1 * criterion(pred_d2x, gts_d2x, gamma = 5)
-                        mask_gt = mask1_flag
-                        mask_flat = mask if mask2_flag else None
-                        mask_edge = mask_edge if mask3_flag else None
-                        loss_focal = criterion(pred, gts, mask_gt = mask_gt, gamma = 5, 
-                            mask_flat = mask_flat, mask_edge = mask_edge)
-                        loss = loss + loss_focal
-                        if ap:
-                            loss_ap = anisotropic_penalty(pred, lines)
-                            loss = loss + 5e-8 * loss_ap
+                if l1_loss:
+                    pred = denormalize(pred)
+                    loss = criterion(pred, gts)
                 else:
-                    if l1_loss:
-                        pred = denormalize(pred)
-                        loss = criterion(pred, gts)
-                    else:
-                        mask_gt = mask1_flag
-                        mask_flat = flat_mask if mask2_flag else None
-                        mask_edge = mask_edge if mask3_flag else None
-                        loss_focal = criterion(pred, gts, mask_gt = mask_gt, gamma = 5, 
-                            mask_flat = mask_flat, mask_edge = mask_edge)
-                        loss = loss + loss_focal
+                    loss_bce = criterion(pred, gts, mask_flat = flat_mask)
+                    loss = loss + loss_bce
+                if ap:
+                    loss_ap = anisotropic_penalty(pred, lines)
+                    loss = loss + 1e-6 * loss_ap
 
-                    if ap:
-                        loss_ap = anisotropic_penalty(pred, lines)
-                        loss = loss + 1e-6 * loss_ap
                 # record loss
                 epoch_loss += loss.item()
-                pbar.set_postfix(**{'loss (batch)': loss.item()})
+                pbar.set_postfix(**{'Loss:': loss.item()})
 
                 # back propagate
                 optimizer.zero_grad()
                 loss.backward()
-                # why we need grad clipping? 
                 # nn.utils.clip_grad_value_(net.parameters(), 0.1)
                 optimizer.step()
+                # scheduler.step()
                 pbar.update(batch_size)
                 
                 # record the loss more frequently
-                if global_step % 20 == 0 and args.log:
-                    if progressive:
-                        wandb.log({"Progressive Loss": loss.item()})
-                    else:
-                        wandb.log({'Focal Loss': loss_focal.item()}) 
-                        if ap:
-                            wandb.log({'Anisotropic Penalty': loss_ap.item()}) 
-                    # if mask1_flag or mask2_flag:
-                    #     wandb.log({'Loss outside flat/gt mask': loss1.item()}) 
-                    #     wandb.log({'Loss inside flat/flat only/gt mask)': loss2.item()}) 
-                    #     wandb.log({'Loss inside gt mask (if loss3 is none zero)': loss3.item()}) 
-                    # wandb.log({'Loss pos labels inside GT': loss3.item()}) 
+                if global_step % 500 == 0 and args.log:
+                    wandb.log({'Focal Loss': loss_focal.item()}, step = global_step) 
+                    if ap:
+                        wandb.log({'Anisotropic Penalty': loss_ap.item()}, step = global_step) 
 
                 # record the image output 
-                # if True:
-                if global_step % 500 == 0:
+                if global_step % 1500 == 0:
                     imgs = denormalize(imgs)
                     if l1_loss:
                         gts = denormalize(gts)
                         pred = denormalize(pred)
                     else:
                         pred = torch.sigmoid(pred)
-                    if progressive:
-                        # we don't need to down sample the 
-                        sample = torch.cat((pred.repeat(1, 3, 1, 1),
-                            (pred > 0.7).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
-                            gts.repeat(1, 3, 1, 1)), dim = 0)
-                    else:
-                        sample = torch.cat((imgs,  pred.repeat(1, 3, 1, 1),
-                            (pred > 0.7).repeat(1, 3, 1, 1), (pred > 0.5).repeat(1, 3, 1, 1),
-                            gts.repeat(1, 3, 1, 1)), dim = 0)
+                    sample = torch.cat((imgs,  pred.repeat(1, 3, 1, 1), 
+                                (pred > 0.5).repeat(1, 3, 1, 1), gts.repeat(1, 3, 1, 1)), dim = 0)
+
                     result_folder = os.path.join("./results/train/", dt_formatted)
                     if os.path.exists(result_folder) is False:
                         logging.info("Creating %s"%str(result_folder))
                         os.makedirs(result_folder)
-
                     utils.save_image(
                         sample,
                         os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"),
@@ -328,52 +237,52 @@ def train_net(
                     if args.log:
                         fig_res = wandb.Image(np.array(
                             Image.open(os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"))))
-                        wandb.log({'Train Result': fig_res})
+                        wandb.log({'Train Result': fig_res}, step = global_step)
 
-                        if progressive_stage >= 3 or progressive is False: 
-                            # let's also run a validation test
-                            logging.info('Starting Validation')
-                            net.eval()
-                            with torch.no_grad():
-                                # read validation samples
-                                val_counter = 0
-                                val_figs = []
-                                dims = None
-                                for val_img, val_lines, val_gt_list, _, _, label in val_loader:
-                                    if val_counter > 5: break
-                                    # predict
-                                    val_gt, _, _, _ = val_gt_list
-                                    val_img = val_img.to(device=device, dtype=torch.float32)
-                                    val_gt = val_gt.to(device=device, dtype=torch.float32)
-                                    label = label.to(device=device, dtype=torch.float32)
-                                    val_pred, _, _, _ = net(val_img, label)
-                                    if l1_loss:
-                                        val_gt = denormalize(val_gt)
-                                        val_pred = denormalize(val_pred)
-                                    else:
-                                        val_pred = torch.sigmoid(val_pred)
-                                    # save result
-                                    val_img = tensor_to_img(denormalize(val_img))
-                                    val_pred_1 = tensor_to_img((val_pred > 0.7).repeat(1, 3, 1, 1))
-                                    val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
-                                    val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
-                                    val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
-                                    val_sample = np.concatenate((val_img, val_pred, val_pred_1, val_pred_2, val_gt), axis = 1)
-                                    if val_counter == 0:
-                                        dims = (val_sample.shape[1], val_sample.shape[0])
-                                    else:
-                                        assert dims is not None
-                                        val_sample = cv2.resize(val_sample, dims, interpolation = cv2.INTER_AREA)
-                                    val_counter += 1
-                                    val_figs.append(val_sample)    
-                                val_figs = np.concatenate(val_figs, axis = 0)
-                                val_fig_res = wandb.Image(val_figs)
-                                wandb.log({"Val Result":val_fig_res})
+        # validation
+        if epoch % 20 == 0:
+            logging.info('Starting Validation')
+            net.eval()
+            with torch.no_grad():
+                val_counter = 0
+                val_figs = []
+                dims = None
+                for val_img, val_lines, val_gt_list, _, _, label in val_loader:
+                    if val_counter > 5: break
+                    # predict
+                    val_gt, _, _, _ = val_gt_list
+                    val_img = val_img.to(device=device, dtype=torch.float32)
+                    val_gt = val_gt.to(device=device, dtype=torch.float32)
+                    val_lines = val_lines.to(device=device, dtype=torch.float32)
+                    label = label.to(device=device, dtype=torch.float32)
+                    val_pred, _, _, _ = net(val_img, label)
+                    if l1_loss:
+                        val_gt = denormalize(val_gt)
+                        val_pred = denormalize(val_pred)
+                    else:
+                        val_pred = torch.sigmoid(val_pred)
+                    # save result
+                    val_img = tensor_to_img(denormalize(val_img))
+                    val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
+                    val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
+                    val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
+                    val_sample = np.concatenate((val_img, val_pred, val_pred_2, val_gt), axis = 1)
+                    if val_counter == 0:
+                        dims = (val_sample.shape[1], val_sample.shape[0])
+                    else:
+                        assert dims is not None
+                        val_sample = cv2.resize(val_sample, dims, interpolation = cv2.INTER_AREA)
+                    val_counter += 1
+                    val_figs.append(val_sample)    
+                val_figs = np.concatenate(val_figs, axis = 0)
+                Image.fromarray(val_figs).save(os.path.join(result_folder, "%06d_val.png"%global_step))
+                if args.log:
+                    val_fig_res = wandb.Image(val_figs)
+                    wandb.log({"Val Result":val_fig_res}, step = global_step)
 
                 # update the global step
                 global_step += 1
-                if (epoch + 1) % 550 == 0:
-                    progressive_stage += 1
+        
         # save model
         if save_cp and epoch % 100 == 0:
             # save trying result in single folder each time
@@ -388,17 +297,11 @@ def tensor_to_img(t):
 def get_args():
     parser = argparse.ArgumentParser(description='ShadowMagic Ver 0.2',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=5000,
+    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=1000,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-m', '--multi-gpu', action='store_true')
     parser.add_argument('-a', action='store_true', dest='anisotropic_penalty', 
                         default='use anisotropic penalty')
-    parser.add_argument('-w1', '--weighted-flat', action='store_true', dest="mask1",
-                        help="use flat mask to weight the loss computation")
-    parser.add_argument('-w2', '--weighted-gt', action='store_true', dest="mask2",
-                        help="use gt as mask to weight the loss computation")
-    parser.add_argument('-w3', '--weighted-gt-edge', action='store_true', dest="mask3",
-                        help="use gt mask edge to weight the loss computation")
     parser.add_argument('-c', '--crop-size', metavar='C', type=int, default=256,
                         help='the size of random cropping', dest="crop")
     parser.add_argument('-n', '--name', type=str,
@@ -413,9 +316,9 @@ def get_args():
                         help='resize the shorter edge of the training image')
     parser.add_argument('-i', '--imgs', dest="imgs", type=str,
                         help='the path to training set')
-    parser.add_argument('-p', '--pro', dest="progressive", action = "store_true")
     parser.add_argument('--log', action="store_true", help='enable wandb log')
     parser.add_argument('--l1', action="store_true", help='use L1 loss instead of BCE loss')
+    parser.add_argument('-do', action="store_true", help='enable drop out')
 
     return parser.parse_args()
 
@@ -431,7 +334,7 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logging.info(f'Using device {device}')
 
-    net = UNet(in_channels=1, out_channels=1, bilinear=True, l1=args.l1)
+    net = UNet(in_channels=3, out_channels=1, bilinear=True, l1=args.l1, drop_out = args.do)
     
     if args.multi_gpu:
         logging.info("using data parallel")
@@ -458,10 +361,9 @@ if __name__ == '__main__':
                     device = device,
                     crop_size = args.crop,
                     resize = args.resize,
-                    use_mask = [args.mask1, args.mask2, args.mask3],
                     l1_loss = args.l1,
                     name = args.name,
-                    progressive = args.progressive,
+                    drop_out = args.do,
                     ap = args.anisotropic_penalty
                   )
 
@@ -487,7 +389,7 @@ if __name__ == '__main__':
     #             use_mask = [args.mask1, args.mask2, args.mask3],
     #             l1_loss = args.l1,
     #             name = args.name,
-    #             progressive = args.progressive,
+    #             drop_out = args.do,
     #             ap = args.anisotropic_penalty
     #         )
 

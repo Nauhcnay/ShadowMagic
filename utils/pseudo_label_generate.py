@@ -71,6 +71,7 @@ if __name__ == "__main__":
                 res['annotations'].append(contour)
                 idx_c += 1
             # Image.fromarray(cv2.drawContours(flat, contours, -1, color = (0, 255, 0), thickness = 0 ).astype(np.uint8)).show()
+            break
     if args.o is None:
         out_path = args.i
     else:
