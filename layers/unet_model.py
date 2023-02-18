@@ -2,16 +2,20 @@
 
 import torch.nn.functional as F
 
+from torch import nn
 from .unet_parts import *
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels, out_channels, bilinear=True, l1 = False):
+    def __init__(self, in_channels, out_channels, bilinear=True, l1 = False, drop_out = False):
         super(UNet, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.bilinear = bilinear
-
+        if drop_out:
+            self.drop_out = nn.Dropout(0.2)
+        else:
+            self.drop_out = None
         self.inc = DoubleConv(in_channels, 64)
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
@@ -41,7 +45,11 @@ class UNet(nn.Module):
         x4_cat = torch.cat((x4, label.unsqueeze(-1).unsqueeze(-1).expand(b, 1, h, w)), dim = 1)
         x5 = self.down4(x4_cat)
         x6 = self.bottle1(x5)
+        if self.drop_out is not None:
+            x6 = self.drop_out(x6)
         x7 = self.bottle2(x6)
+        if self.drop_out is not None:
+            x7 = self.drop_out(x7)
         x = self.up1(x7, x4) # 64
         x_down_8x = self.out1(x)
         x = self.up2(x, x3) # 128

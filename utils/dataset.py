@@ -74,14 +74,6 @@ class BasicDataset(Dataset):
         return self.length
 
     def __getitem__(self, idx):
-        '''
-            alright, here we need to several things...
-            1. resize each input image
-            2. remove alpha channel if it exsits
-            3. merge line and flat layer, we will send them to the network together
-            4. what kind of augmentation could we use? cause I guess flipping will not work...
-            wait, or will? how about we also flip the label!
-        '''
         # get image path
         line_path = self.ids[idx].strip("\n")
         flat_path = line_path.replace("line", "flat")
@@ -104,50 +96,50 @@ class BasicDataset(Dataset):
         shad_np = np.array(Image.open(shad_path))
         
         # create training mask
-        mask_np = flat_np[:, :, 3]
-        _, mask_np = cv2.threshold(mask_np.squeeze(), 127, 255, cv2.THRESH_BINARY)
+        flat_mask_np = flat_np[:, :, 3]
+        _, flat_mask_np = cv2.threshold(flat_mask_np.squeeze(), 127, 255, cv2.THRESH_BINARY)
 
         # merge line and flat
         flat_np = self.remove_alpha(flat_np)
-        flat_np = flat_np * (1 - np.expand_dims(line_np[:, :, 3], axis = -1) / 255)
+        img_np = flat_np * (1 - np.expand_dims(line_np[:, :, 3], axis = -1) / 255)
         line_np = 255 - line_np[:, :, 3] # remove alpha channel, but yes, we use alpha channel as the line drawing
         shad_np = self.remove_alpha(shad_np, gray = True)
         # we need an additional thershold for this
         _, shad_np = cv2.threshold(shad_np, 127, 255, cv2.THRESH_BINARY)
 
-        # create edge mask
-        mask_edge_np = cv2.Canny(shad_np, 0, 20)
-        mask_edge_np = cv2.dilate(mask_edge_np, self.kernel, iterations = 1)
+        # create shadow edge mask
+        flat_edge_np = cv2.Canny(shad_np, 0, 20)
+        flat_edge_np = cv2.dilate(flat_edge_np, self.kernel, iterations = 1)
         # resize image, now we still have to down sample the input a little bit for a easy training
         h, w = shad_np.shape
         h, w = self.resize_hw(h, w, random_resize = 0.3)
-        flat_np = cv2.resize(flat_np, (w, h), interpolation = cv2.INTER_AREA)
+        img_np = cv2.resize(img_np, (w, h), interpolation = cv2.INTER_AREA)
         line_np = cv2.resize(line_np, (w, h), interpolation = cv2.INTER_AREA)
         shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_NEAREST)
-        mask_np = cv2.resize(mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
-        mask_edge_np = cv2.resize(mask_edge_np, (w, h), interpolation = cv2.INTER_NEAREST)
+        flat_mask_np = cv2.resize(flat_mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
+        flat_edge_np = cv2.resize(flat_edge_np, (w, h), interpolation = cv2.INTER_NEAREST)
 
         # we don't need image augmentation for val
         # if True:
         if self.val == False:
             # augment image, let's do this in numpy!
-            img_list, label = self.random_flip([flat_np, line_np, shad_np, mask_np, mask_edge_np], label)
-            flat_np, line_np, shad_np, mask_np, mask_edge_np = img_list
-            bbox = self.random_bbox(flat_np)
-            flat_np, line_np, shad_np, mask_np, mask_edge_np = self.crop([flat_np, line_np, shad_np, mask_np, mask_edge_np], bbox)
+            img_list, label = self.random_flip([img_np, line_np, shad_np, flat_mask_np, flat_edge_np], label)
+            img_np, line_np, shad_np, flat_mask_np, flat_edge_np = img_list
+            bbox = self.random_bbox(img_np)
+            img_np, line_np, shad_np, flat_mask_np, flat_edge_np = self.crop([img_np, line_np, shad_np, flat_mask_np, flat_edge_np], bbox)
 
         
         # clip values
-        flat_np = flat_np.clip(0, 255)
+        img_np = img_np.clip(0, 255)
         shad_np = shad_np.clip(0, 255)
         shad_np_d2x = self.down_sample(shad_np)
         shad_np_d4x = self.down_sample(shad_np_d2x)
         shad_np_d8x = self.down_sample(shad_np_d4x)
-        mask_np = mask_np.clip(0, 255)
-        mask_edge_np = mask_edge_np.clip(0, 255)
+        flat_mask_np = flat_mask_np.clip(0, 255)
+        flat_edge_np = flat_edge_np.clip(0, 255)
 
         # convert to tensor, and the following process should all be done by cuda
-        flat = self.to_tensor(flat_np / 255)
+        img = self.to_tensor(img_np / 255)
         line = self.to_tensor(line_np.copy(), False)
         if self.l1_loss:
             shad = self.to_tensor(1 - shad_np / 255) # if we use l1 loss, let's treat the shading as image
@@ -156,12 +148,12 @@ class BasicDataset(Dataset):
             shad_d2x = self.to_tensor(1 - shad_np_d2x / 255, False)
             shad_d4x = self.to_tensor(1 - shad_np_d4x / 255, False)
             shad_d8x = self.to_tensor(1 - shad_np_d8x / 255, False)
-        mask = self.to_tensor(mask_np / 255, False)
-        mask_edge = self.to_tensor(1 - mask_edge_np / 255, False)
+        flat_mask = self.to_tensor(flat_mask_np / 255, False)
+        flat_edge = self.to_tensor(1 - flat_edge_np / 255, False)
         label = torch.Tensor([label])
         assert line.shape == shad.shape
         # it returns tensor at last
-        return flat, mask_edge, (shad, shad_d2x, shad_d4x, shad_d8x), mask, mask_edge, label
+        return img, line, (shad, shad_d2x, shad_d4x, shad_d8x), flat_mask, flat_edge, label
     
     def down_sample(self, img):
         dw = int(img.shape[1] / 2)

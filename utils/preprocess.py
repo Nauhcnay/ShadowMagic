@@ -150,13 +150,17 @@ def flat_to_fillmap(flat):
     fill[alpha_channel == 0] = 0 # fill region starts at 2
     color_idx = 2
     color_map = [np.array([0,0,0,0]), np.array([0,0,0,255])]
-    thresh_color = h * w *0.0005
+    th1 = h * w *5e-6
+    th2 = h * w *5e-4
     for c in tqdm(np.unique(color_channel)):
         if c == -1: continue # skip transparent color
         if c == 0: continue # skip black color, it should be the line drawing
         # check if this region should be transparent
         mask = (color_channel == c).squeeze()
-        if mask.sum() < thresh_color:
+        # find bbox of the mask
+        t, l, b, r = get_bbox(mask)
+        mask_bsize = (r - l) * (b - t)
+        if mask.sum() < th1 or (mask_bsize > 10 * mask.sum() and mask.sum() < th2):
             fill[mask] = 1
             continue
         c_alpha = fill[mask]
@@ -171,6 +175,18 @@ def flat_to_fillmap(flat):
         color_idx += 1
         color_map.append(int_to_color(c))
     return fill.astype(int), np.array(color_map).astype(np.uint8)
+
+def get_bbox(mask, pt_mode = False):
+    # mask should be a boolean array
+    if pt_mode:
+        pts = mask
+    else:
+        pts = np.array(np.where(mask)).T
+    left = pts[:, 1].min()
+    right = pts[:, 1].max()
+    top = pts[:, 0].min()
+    bottom = pts[:, 0].max()
+    return top, left, bottom, right
 
 def shadow_to_fillmap(shadow):
     print("Log:\tconverting shadow to fill map...")

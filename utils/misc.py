@@ -9,6 +9,34 @@ from os.path import split, splitext
 from PIL import Image
 from preprocess import fillmap_to_color, flat_to_fillmap
 
+def resize_hw(h, w, size):
+    # we resize the shorter edge to the target size
+    if h > w:
+        ratio =  h / w
+        h = int(size * ratio)
+        w = size
+    else:
+        ratio = w / h
+        w = int(size * ratio)
+        h = size
+    return h, w
+
+def remove_alpha(img, gray = False):
+    if len(img.shape) == 3:
+        h, w, c = img.shape
+        if c == 4:
+            alpha = np.expand_dims(img[:, :, 3], -1) / 255
+            whit_bg = np.ones((h, w, 3)) * 255
+            img_res = img[:, :, :3] * alpha + whit_bg * (1 - alpha)
+            if gray:
+                img_res = img_res.mean(axis = -1)
+        else:
+            img_res = img
+    else:
+        img_res = img
+    return img_res
+    
+
 # let's do this 
 def to_hint_layer(flat, label):
     '''

@@ -62,8 +62,8 @@ def anisotropic_penalty(pre, line, size = 3, k = 1):
     loss = (pre_ap * line_ap).sum()
     return loss
     
-def focal_loss(pre, target, mask_gt = False, gamma = 5, mask_flat = None, mask_edge = None):
-    
+def weighted_l1_loss(pre, target, mask_gt = False, gamma = 5, mask_flat = None, mask_edge = None):
+    # need to re-write this function
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
     mask = 1
     if mask_gt:
@@ -132,7 +132,7 @@ def train_net(
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
     dataset_val = BasicDataset(img_path, crop_size = crop_size, resize = resize, val = True, l1_loss = l1_loss)
-    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True, drop_last=False)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
     val_loader = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=0, pin_memory=True, drop_last=True)
     # we don't need valiation currently
     # val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
@@ -176,7 +176,7 @@ def train_net(
         criterion = nn.L1Loss()
     else:
         # let's use the focal loss instead of the BCE loss directly
-        criterion = focal_loss
+        criterion = weighted_l1_loss
     
     # start logging
     if args.log:
@@ -204,7 +204,7 @@ def train_net(
         if progressive:
             print("Log:\tcurrent progressive level is %d"%progressive_stage)
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
-            for imgs, lines, gts_list, mask, mask_edge, label in train_loader:
+            for imgs, lines, gts_list, flat_mask, mask_edge, label in train_loader:
                 gts, gts_d2x, gts_d4x, gts_d8x = gts_list
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 lines = lines.to(device=device, dtype=torch.float32)
@@ -212,7 +212,7 @@ def train_net(
                 gts_d2x = gts_d2x.to(device=device, dtype=torch.float32)
                 gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
                 gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
-                mask = mask.to(device=device, dtype=torch.float32)
+                flat_mask = flat_mask.to(device=device, dtype=torch.float32)
                 mask_edge = mask_edge.to(device=device, dtype=torch.float32)
                 label = label.to(device=device, dtype=torch.float32)
 
@@ -258,7 +258,7 @@ def train_net(
                         loss = criterion(pred, gts)
                     else:
                         mask_gt = mask1_flag
-                        mask_flat = mask if mask2_flag else None
+                        mask_flat = flat_mask if mask2_flag else None
                         mask_edge = mask_edge if mask3_flag else None
                         loss_focal = criterion(pred, gts, mask_gt = mask_gt, gamma = 5, 
                             mask_flat = mask_flat, mask_edge = mask_edge)
@@ -386,7 +386,7 @@ def tensor_to_img(t):
     return (t.cpu().numpy().squeeze().transpose(1,2,0) * 255).astype(np.uint8)
 
 def get_args():
-    parser = argparse.ArgumentParser(description='ShadowMagic Ver 0.1',
+    parser = argparse.ArgumentParser(description='ShadowMagic Ver 0.2',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-e', '--epochs', metavar='E', type=int, default=5000,
                         help='Number of epochs', dest='epochs')
@@ -399,7 +399,7 @@ def get_args():
                         help="use gt as mask to weight the loss computation")
     parser.add_argument('-w3', '--weighted-gt-edge', action='store_true', dest="mask3",
                         help="use gt mask edge to weight the loss computation")
-    parser.add_argument('-c', '--crop-size', metavar='C', type=int, default=512,
+    parser.add_argument('-c', '--crop-size', metavar='C', type=int, default=256,
                         help='the size of random cropping', dest="crop")
     parser.add_argument('-n', '--name', type=str,
                         help='the name for wandb logging', dest="name")
@@ -431,7 +431,7 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logging.info(f'Using device {device}')
 
-    net = UNet(in_channels=3, out_channels=1, bilinear=True, l1=args.l1)
+    net = UNet(in_channels=1, out_channels=1, bilinear=True, l1=args.l1)
     
     if args.multi_gpu:
         logging.info("using data parallel")
