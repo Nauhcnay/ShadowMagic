@@ -150,10 +150,9 @@ def train_net(
           "epochs": epochs, 
           "batch_size": batch_size,
           "crop_size": crop_size,
-          "use_mask":use_mask,
           "loss":"L1" if l1_loss else "BCE"
         }
-        wandb.watch(net, log_freq=30)
+        # wandb.watch(net, log_freq=30)
 
     now = datetime.now()
     dt_formatted = now.strftime("D%Y-%m-%dT%H-%M-%S")
