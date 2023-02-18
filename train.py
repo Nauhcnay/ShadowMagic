@@ -205,7 +205,7 @@ def train_net(
                 
                 # record the loss more frequently
                 if global_step % 500 == 0 and args.log:
-                    wandb.log({'Focal Loss': loss_focal.item()}, step = global_step) 
+                    wandb.log({'Loss': loss_bce.item()}, step = global_step) 
                     if ap:
                         wandb.log({'Anisotropic Penalty': loss_ap.item()}, step = global_step) 
 
