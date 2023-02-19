@@ -237,6 +237,9 @@ def train_net(
                         fig_res = wandb.Image(np.array(
                             Image.open(os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"))))
                         wandb.log({'Train Result': fig_res}, step = global_step)
+                    
+                # update the global step
+                global_step += 1
 
         # validation
         if epoch % 20 == 0:
@@ -279,8 +282,7 @@ def train_net(
                     val_fig_res = wandb.Image(val_figs)
                     wandb.log({"Val Result":val_fig_res}, step = global_step)
 
-                # update the global step
-                global_step += 1
+                
         
         # save model
         if save_cp and epoch % 100 == 0:
@@ -350,45 +352,44 @@ if __name__ == '__main__':
     # faster convolutions, but more memory
     # cudnn.benchmark = True
 
-    try:
-        train_net(
-                    img_path = args.imgs,
-                    net = net,
-                    epochs = args.epochs,
-                    batch_size = args.batchsize,
-                    lr = args.lr,
-                    device = device,
-                    crop_size = args.crop,
-                    resize = args.resize,
-                    l1_loss = args.l1,
-                    name = args.name,
-                    drop_out = args.do,
-                    ap = args.anisotropic_penalty
-                  )
+    # try:
+    #     train_net(
+    #                 img_path = args.imgs,
+    #                 net = net,
+    #                 epochs = args.epochs,
+    #                 batch_size = args.batchsize,
+    #                 lr = args.lr,
+    #                 device = device,
+    #                 crop_size = args.crop,
+    #                 resize = args.resize,
+    #                 l1_loss = args.l1,
+    #                 name = args.name,
+    #                 drop_out = args.do,
+    #                 ap = args.anisotropic_penalty
+    #               )
 
-    # this is interesting, save model when keyborad interrupt
-    except KeyboardInterrupt:
-        torch.save(net.state_dict(), './checkpoints/INTERRUPTED.pth')
-        logging.info('Saved interrupt')
-        try:
-            sys.exit(0)
-        except SystemExit:
-            os._exit(0)
+    # # this is interesting, save model when keyborad interrupt
+    # except KeyboardInterrupt:
+    #     torch.save(net.state_dict(), './checkpoints/INTERRUPTED.pth')
+    #     logging.info('Saved interrupt')
+    #     try:
+    #         sys.exit(0)
+    #     except SystemExit:
+    #         os._exit(0)
 
     '''for debug'''
-    # train_net(
-    #             img_path = args.imgs,
-    #             net = net,
-    #             epochs = args.epochs,
-    #             batch_size = args.batchsize,
-    #             lr = args.lr,
-    #             device = device,
-    #             crop_size = args.crop,
-    #             resize = args.resize,
-    #             use_mask = [args.mask1, args.mask2, args.mask3],
-    #             l1_loss = args.l1,
-    #             name = args.name,
-    #             drop_out = args.do,
-    #             ap = args.anisotropic_penalty
-    #         )
+    train_net(
+                img_path = args.imgs,
+                net = net,
+                epochs = args.epochs,
+                batch_size = args.batchsize,
+                lr = args.lr,
+                device = device,
+                crop_size = args.crop,
+                resize = args.resize,
+                l1_loss = args.l1,
+                name = args.name,
+                drop_out = args.do,
+                ap = args.anisotropic_penalty
+            )
 
