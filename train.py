@@ -155,7 +155,9 @@ def train_net(
         # wandb.watch(net, log_freq=30)
 
     now = datetime.now()
-    dt_formatted = now.strftime("D%Y-%m-%dT%H-%M-%S")
+    dt_formatted = now.strftime("D%Y-%m-%dT%H-%M-%S") 
+    if args.name is not None:
+        dt_formatted = dt_formatted + "-" + args.name
     model_folder = os.path.join("./checkpoints", dt_formatted)
     os.makedirs(model_folder)
 
