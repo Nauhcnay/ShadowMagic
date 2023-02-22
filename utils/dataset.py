@@ -108,8 +108,8 @@ class BasicDataset(Dataset):
         _, shad_np = cv2.threshold(shad_np, 127, 255, cv2.THRESH_BINARY)
 
         # create shadow edge mask
-        flat_edge_np = cv2.Canny(shad_np, 0, 20)
-        flat_edge_np = cv2.dilate(flat_edge_np, self.kernel, iterations = 1)
+        shade_edge_np = cv2.Canny(shad_np, 0, 20)
+        shade_edge_np = 255 - cv2.dilate(shade_edge_np, self.kernel, iterations = 1)
         # resize image, now we still have to down sample the input a little bit for a easy training
         h, w = shad_np.shape
         h, w = self.resize_hw(h, w, random_resize = 0.3)
@@ -117,16 +117,16 @@ class BasicDataset(Dataset):
         line_np = cv2.resize(line_np, (w, h), interpolation = cv2.INTER_AREA)
         shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_NEAREST)
         flat_mask_np = cv2.resize(flat_mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
-        flat_edge_np = cv2.resize(flat_edge_np, (w, h), interpolation = cv2.INTER_NEAREST)
+        shade_edge_np = cv2.resize(shade_edge_np, (w, h), interpolation = cv2.INTER_NEAREST)
 
         # we don't need image augmentation for val
         # if True:
         if self.val == False:
             # augment image, let's do this in numpy!
-            img_list, label = self.random_flip([img_np, line_np, shad_np, flat_mask_np, flat_edge_np], label)
-            img_np, line_np, shad_np, flat_mask_np, flat_edge_np = img_list
+            img_list, label = self.random_flip([img_np, line_np, shad_np, flat_mask_np, shade_edge_np], label)
+            img_np, line_np, shad_np, flat_mask_np, shade_edge_np = img_list
             bbox = self.random_bbox(img_np)
-            img_np, line_np, shad_np, flat_mask_np, flat_edge_np = self.crop([img_np, line_np, shad_np, flat_mask_np, flat_edge_np], bbox)
+            img_np, line_np, shad_np, flat_mask_np, shade_edge_np = self.crop([img_np, line_np, shad_np, flat_mask_np, shade_edge_np], bbox)
 
         
         # clip values
@@ -136,7 +136,7 @@ class BasicDataset(Dataset):
         shad_np_d4x = self.down_sample(shad_np_d2x)
         shad_np_d8x = self.down_sample(shad_np_d4x)
         flat_mask_np = flat_mask_np.clip(0, 255)
-        flat_edge_np = flat_edge_np.clip(0, 255)
+        shade_edge_np = shade_edge_np.clip(0, 255)
 
         # convert to tensor, and the following process should all be done by cuda
         img = self.to_tensor(img_np / 255)
@@ -149,7 +149,8 @@ class BasicDataset(Dataset):
             shad_d4x = self.to_tensor(1 - shad_np_d4x / 255, False)
             shad_d8x = self.to_tensor(1 - shad_np_d8x / 255, False)
         flat_mask = self.to_tensor(flat_mask_np / 255, False)
-        flat_edge = self.to_tensor(1 - flat_edge_np / 255, False)
+        flat_edge = self.to_tensor(shade_edge_np / 255, False)
+        line = line * flat_edge
         label = torch.Tensor([label])
         assert line.shape == shad.shape
         # it returns tensor at last

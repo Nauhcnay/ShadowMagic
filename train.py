@@ -62,17 +62,16 @@ def anisotropic_penalty(pre, line, size = 3, k = 1):
     loss = (pre_ap * line_ap).sum()
     return loss
     
-def weighted_bce_loss(pre, target, mask_flat):
+def weighted_bce_loss(pre, target):
     # compute loss map
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
     # compute loss mask
-    weights = [0.5, 1, 1.5]
+    weights = [1, 1, 0.2]
     mask_pre = torch.sigmoid(pre) > 0.5
-    mask_in = mask_flat.bool()
-    mask_out = torch.logical_not(mask_in)
-    mask_out_correct = torch.logical_and(mask_out, torch.logical_not(mask_pre))
-    mask_out_wrong = torch.logical_and(mask_out, mask_pre)
-    masks = [mask_out_correct, mask_out_wrong, mask_in]
+    mask_pos = target.bool()
+    mask_neg = torch.logical_not(mask_pos)
+    mask_fp = torch.logical_and(torch.logical_not(mask_pre), mask_pos)
+    masks = [mask_neg, mask_pos, mask_fp]
     # compute final loss
     loss = 0
     avg = 0
@@ -133,7 +132,7 @@ def train_net(
     # not sure which optimizer will be better
     #optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
     optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones = [200, 400], gamma = 0.1, verbose = True)
+    # scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones = [200, 400], gamma = 0.1, verbose = True)
     # create the loss function
     # the task is in fact a binary classification problem
     if l1_loss:
@@ -187,7 +186,7 @@ def train_net(
                     pred = denormalize(pred)
                     loss = criterion(pred, gts)
                 else:
-                    loss_bce = criterion(pred, gts, mask_flat = flat_mask)
+                    loss_bce = criterion(pred, gts)
                     loss = loss + loss_bce
                 if ap:
                     loss_ap = anisotropic_penalty(pred, lines)
@@ -203,16 +202,16 @@ def train_net(
                 # nn.utils.clip_grad_value_(net.parameters(), 0.1)
                 optimizer.step()
                 # scheduler.step()
-                pbar.update(batch_size)
+                pbar.update(len(imgs))
                 
                 # record the loss more frequently
-                if global_step % 500 == 0 and args.log:
+                if global_step % 350 == 0 and args.log:
                     wandb.log({'Loss': loss_bce.item()}, step = global_step) 
                     if ap:
                         wandb.log({'Anisotropic Penalty': loss_ap.item()}, step = global_step) 
 
                 # record the image output 
-                if global_step % 1500 == 0:
+                if global_step % 750 == 0:
                     imgs = denormalize(imgs)
                     if l1_loss:
                         gts = denormalize(gts)
@@ -244,7 +243,7 @@ def train_net(
                 global_step += 1
 
         # validation
-        if epoch % 20 == 0:
+        if epoch % 50 == 0:
             logging.info('Starting Validation')
             net.eval()
             with torch.no_grad():
@@ -283,9 +282,6 @@ def train_net(
                 if args.log:
                     val_fig_res = wandb.Image(val_figs)
                     wandb.log({"Val Result":val_fig_res}, step = global_step)
-
-                
-        
         # save model
         if save_cp and epoch % 100 == 0:
             # save trying result in single folder each time
