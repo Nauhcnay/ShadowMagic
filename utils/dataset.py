@@ -149,12 +149,12 @@ class BasicDataset(Dataset):
             shad_d4x = self.to_tensor(1 - shad_np_d4x / 255, False)
             shad_d8x = self.to_tensor(1 - shad_np_d8x / 255, False)
         flat_mask = self.to_tensor(flat_mask_np / 255, False)
-        flat_edge = self.to_tensor(shade_edge_np / 255, False)
-        line = line * flat_edge
+        shade_edge = self.to_tensor(shade_edge_np / 255, False)
+        line = line * shade_edge
         label = torch.Tensor([label])
         assert line.shape == shad.shape
         # it returns tensor at last
-        return img, line, (shad, shad_d2x, shad_d4x, shad_d8x), flat_mask, flat_edge, label
+        return img, line, (shad, shad_d2x, shad_d4x, shad_d8x), flat_mask, shade_edge, label
     
     def down_sample(self, img):
         dw = int(img.shape[1] / 2)

@@ -66,12 +66,13 @@ def weighted_bce_loss(pre, target):
     # compute loss map
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
     # compute loss mask
-    weights = [1, 1, 0.2]
+    weights = [1, 1, 0.1, 0.1]
     mask_pre = torch.sigmoid(pre) > 0.5
     mask_pos = target.bool()
     mask_neg = torch.logical_not(mask_pos)
-    mask_fp = torch.logical_and(torch.logical_not(mask_pre), mask_pos)
-    masks = [mask_neg, mask_pos, mask_fp]
+    mask_fn = torch.logical_and(torch.logical_not(mask_pre), mask_pos)
+    mask_fp = torch.logical_and(mask_pre, mask_neg)
+    masks = [mask_neg, mask_pos, mask_fp, mask_fn]
     # compute final loss
     loss = 0
     avg = 0
@@ -165,7 +166,7 @@ def train_net(
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             net.train()
             epoch_loss = 0
-            for imgs, lines, gts_list, flat_mask, mask_edge, label in train_loader:
+            for imgs, lines, gts_list, flat_mask, shade_edge, label in train_loader:
                 gts, gts_d2x, gts_d4x, gts_d8x = gts_list
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 lines = lines.to(device=device, dtype=torch.float32)
@@ -174,7 +175,7 @@ def train_net(
                 gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
                 gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
                 flat_mask = flat_mask.to(device=device, dtype=torch.float32)
-                # mask_edge = mask_edge.to(device=device, dtype=torch.float32)
+                shade_edge = shade_edge.to(device=device, dtype=torch.float32)
                 label = label.to(device=device, dtype=torch.float32)
 
                 # forward
@@ -189,7 +190,7 @@ def train_net(
                     loss_bce = criterion(pred, gts)
                     loss = loss + loss_bce
                 if ap:
-                    loss_ap = anisotropic_penalty(pred, lines)
+                    loss_ap = anisotropic_penalty(pred, shade_edge)
                     loss = loss + 1e-6 * loss_ap
 
                 # record loss
