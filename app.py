@@ -15,6 +15,8 @@ from os.path import join, exists
 from scipy.signal import convolve2d as conv2d
 from utils.l0_gradient_minimization import l0_gradient_minimization_2d as l0_2d
 from utils.misc import resize_hw, remove_alpha
+from sklearn.cluster import DBSCAN
+from skimage.segmentation import felzenszwalb, mark_boundaries
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -32,7 +34,7 @@ def init_model(model_path):
 def init_from_args(line, size, direction = None):
     # read input
     if direction is None:
-        direction = line.split("_")[1]
+        direction = line.split("_")[-2]
     direction = DIR_TO_FLOAT.get(direction, None)
     if direction is None:
         log.ERROR(f'Unsupport direction {direction}')
@@ -163,6 +165,10 @@ def main():
     log.basicConfig(level = log.INFO, format='%(levelname)s:%(message)s')
     # init model  
     init_model(args.m)
+    def thres(img, t = 150):
+        img[img > t] = 255
+        img[img <= t] = 0
+        return 255 - img
 
     ## run in command line mode or WebUI mode
     if args.g:
@@ -175,8 +181,14 @@ def main():
             img, img_np, shadow, label = init_from_args(line, args.s, args.d)
             pre = shadowing(img, label)
             pre_ = (pre.copy() * 255).astype(np.uint8)
+            pre_[pre_ < 100] = 0
+            pre_seg_label = felzenszwalb(pre_, scale = 32, sigma = 0.5, min_size = 32)
+            pre_seg = mark_boundaries(pre_, pre_seg_label)
+            Image.fromarray((pre_seg * 255).astype(np.uint8)).show()
+
+            # I think filtering seems not work
             # add gaussain filter
-            pre_g = cv2.GaussianBlur(pre_, (5, 5), 0)
+            pre_g = cv2.GaussianBlur(pre_, (5, 5), 0) 
             # add billateral filter
             pre_b = cv2.bilateralFilter(pre_, 15, 150, 75)
             # add L0 gradient minimization filter
@@ -188,16 +200,18 @@ def main():
             # pre_l_np = vis_heatmap(pre_l)
             pre_l_np = np.repeat(pre_l.astype(np.uint8)[..., np.newaxis], 3, axis = -1)
             pres = np.concatenate((shadow_np, 255 - pre_np, 255 - pre_g_np, 255 - pre_b_np, 255 - pre_l_np), axis = 1)
-            pres_thres = np.concatenate((shadow_np > 150, (255 - pre_np)  > 150, (255 - pre_g_np)  > 150, (255 - pre_b_np)  > 150, (255 - pre_l_np) > 150), axis = 1)
-            # Image.fromarray(pres).save(line.replace('line', "pres"))
+            pres_thres = np.concatenate((thres(shadow_np), thres(255 - pre_np), thres(255 - pre_g_np), thres(255 - pre_b_np), thres(255 - pre_l_np)), axis = 1)
+            Image.fromarray(pres).save(line.replace('line', "pres"))
             Image.fromarray(pres_thres).save(line.replace('line', "pres_thres"))
             
+            # let's try clustering
 
-            # pre = thres_norm_shadowmap(pre) # threshold is 0.5 by default
-            # img_pre = overlay_shadow(img_np, pre)
-            # img_gt = overlay_shadow(img_np, shadow)
-            # Image.fromarray(img_pre.astype(np.uint8)).save(line.replace('line', "pre_all"))
-            # Image.fromarray(img_gt.astype(np.uint8)).save(line.replace('line', "gt_all"))
+
+            pre = thres_norm_shadowmap(pre) # threshold is 0.5 by default
+            img_pre = overlay_shadow(img_np, pre)
+            img_gt = overlay_shadow(img_np, shadow)
+            Image.fromarray(img_pre.astype(np.uint8)).save(line.replace('line', "pre_all"))
+            Image.fromarray(img_gt.astype(np.uint8)).save(line.replace('line', "gt_all"))
             # Image.fromarray((pre*255).clip(0, 255).astype(np.uint8)).save(line.replace('line', "heatmap"))
             
             # visualize the true positive (green), false positive (red), ture negative (black), false negative (blue) regions of the prediction

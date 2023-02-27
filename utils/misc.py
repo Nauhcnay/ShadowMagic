@@ -7,7 +7,10 @@ import numpy as np
 import cv2
 from os.path import split, splitext
 from PIL import Image
-from preprocess import fillmap_to_color, flat_to_fillmap
+try:
+    from utils.preprocess import fillmap_to_color, flat_to_fillmap
+except:
+    from preprocess import fillmap_to_color, flat_to_fillmap
 
 def resize_hw(h, w, size):
     # we resize the shorter edge to the target size

@@ -3,6 +3,7 @@ import os
 import numpy as np
 import argparse
 import cv2
+import random
 
 from PIL import Image
 from os.path import join, exists
@@ -28,17 +29,19 @@ class NumpyEncoder(json.JSONEncoder):
 def parse():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', help = 'the input folder', default = '../experiments/03.Pesudo Labell')
-    parser.add_argument('-o', help = 'the output folder', default = None)
+    parser.add_argument('-o', help = 'the output folder', default = '../experiments/03.Pesudo Labell')
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse()
     # init result dictionary
+    categories = [{'id':1,'name':'Hair'}, {'id':2,'name':'Face'}, {'id':3,'name':'Body'}, {'id':4,'name':'Hand'},
+        {'id':5,'name':'Eye'},{'id':6,'name':'Objects'},{'id':7,'name':'Leg'},{'id':8,'name':'Foot'}]
     res = {
         'info': {'description': 'ShadowMagic pesudo label'}, 
         'images': [],
         'annotations': [],
-        'categories':[{'id':1,'name':'Hair'}]}
+        'categories':categories}
 
     # scan and build up the labels
     idx = 0
@@ -49,6 +52,7 @@ if __name__ == "__main__":
         fill, colors = flat_to_fillmap(flat)
         flat = remove_alpha(flat)      
         fill = thinning(fill)
+        print("log:\t%d regions found in current image"%(len(np.unique(fill))))
         # write image info
         h, w = flat.shape[0], flat.shape[1]
         img_info = {'id': idx + 1, 'width': w, 'height': h, 'file_name': pimg}
@@ -57,6 +61,8 @@ if __name__ == "__main__":
         for region in np.unique(fill):
             if region == 0: continue
             contours, _ = cv2.findContours((fill == region).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            rand_idx = random.randint(0, len(categories) - 1)
+            cat = categories[rand_idx]
             for j in range(len(contours)):
                 c = contours[j].squeeze()
                 c_ = c.copy()
@@ -65,13 +71,12 @@ if __name__ == "__main__":
                 t, l, b, r = get_bbox(c, True)
                 # The COCO bounding box format is [top left x position, top left y position, width, height]
                 contour = {
-                    'id':idx_c, 'iscrowd':0, 'image_id':idx, 'category_id': 1, 
+                    'id':idx_c, 'iscrowd':0, 'image_id':idx, 'category_id': rand_idx + 1, 
                     'segmentation':[c_.flatten().tolist()], 'bbox':[l, t, r - l, b - t],
-                    'area': (fill==region).sum(), 'categories':[{'id':1,'name':'Hair'}]}
+                    'area': (fill==region).sum(), 'categories':cat}
                 res['annotations'].append(contour)
                 idx_c += 1
             # Image.fromarray(cv2.drawContours(flat, contours, -1, color = (0, 255, 0), thickness = 0 ).astype(np.uint8)).show()
-            break
     if args.o is None:
         out_path = args.i
     else:

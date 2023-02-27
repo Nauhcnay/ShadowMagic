@@ -101,7 +101,8 @@ def train_net(
               l1_loss = False,
               name = None,
               drop_out = False,
-              ap = False):
+              ap = False, 
+              aps = 3):
 
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
@@ -190,7 +191,7 @@ def train_net(
                     loss_bce = criterion(pred, gts)
                     loss = loss + loss_bce
                 if ap:
-                    loss_ap = anisotropic_penalty(pred, shade_edge)
+                    loss_ap = anisotropic_penalty(pred, shade_edge, size = aps)
                     loss = loss + 1e-6 * loss_ap
 
                 # record loss
@@ -219,8 +220,8 @@ def train_net(
                         pred = denormalize(pred)
                     else:
                         pred = torch.sigmoid(pred)
-                    sample = torch.cat((imgs,  pred.repeat(1, 3, 1, 1), 
-                                (pred > 0.5).repeat(1, 3, 1, 1), gts.repeat(1, 3, 1, 1)), dim = 0)
+                    sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
+                                (pred > 0.5).repeat(1, 3, 1, 1)), dim = 0)
 
                     result_folder = os.path.join("./results/train/", dt_formatted)
                     if os.path.exists(result_folder) is False:
@@ -304,6 +305,8 @@ def get_args():
                         default='use anisotropic penalty')
     parser.add_argument('-c', '--crop-size', metavar='C', type=int, default=256,
                         help='the size of random cropping', dest="crop")
+    parser.add_argument('-aps', '--ap-size', metavar='C', type=int, default=3,
+                        help='the size for anisotropic penalty', dest="ap_size")
     parser.add_argument('-n', '--name', type=str,
                         help='the name for wandb logging', dest="name")
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=1,
@@ -389,6 +392,7 @@ if __name__ == '__main__':
                 l1_loss = args.l1,
                 name = args.name,
                 drop_out = args.do,
-                ap = args.anisotropic_penalty
+                ap = args.anisotropic_penalty,
+                aps = args.ap_size
             )
 

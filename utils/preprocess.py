@@ -10,7 +10,10 @@ import cv2
 from PIL import Image
 from psd_tools import PSDImage
 from tqdm import tqdm
-from thinning import thinning
+try:
+    from utils.thinning import thinning
+except:
+    from thinning import thinning
 
 from os.path import join, splitext, split, exists
 
@@ -20,7 +23,7 @@ KEY_TO_DIR = {"type1":"right", "type2":"left", "type3":"back", "type4":"top", "�
 
 # convert layer name to english
 KOR_TO_ENG = {"선화":"line", "레이어":"shadow", "밑색":"flat", "용지":"background", "배경":"background",
-    "레이어 1":"shadow", "레이어 2":"background", "layer 1":"background", "layer 2":"background", "그림자":"shadow", 
+    "레이어 1":"background", "레이어 2":"background", "layer 1":"background", "layer 2":"background", "그림자":"shadow", 
     "인물 밑색":"flat", "펜터치":"line"}
 KOR_TO_ENG_S = {"선화":"line", "레이어":"shadow", "밑색":"flat", "용지":"background", "레이어 2":"shadow", "레이어 1":"background","그림자":"shadow"}
 
@@ -92,15 +95,16 @@ def psd_to_pngs(path_psd, path_pngs, counter, debug = False):
                     light_dir = KEY_TO_DIR[name.split("_")[-1].lower()]
             if "D3" in path or "D4" in path or "D5" in path:
                 light_dir = KEY_TO_DIR[name.split("_")[2].lower()]
-
             else:
-                raise ValueError("the current folder has not been ready for parsing")
+                light_dir = KEY_TO_DIR[name.split("_")[2].lower().strip(" ")]                
+                # raise ValueError("the current folder has not been ready for parsing")
             psd = join(path, psd)   
             if debug: # if debug, keep the original file name
                 png = join(path_pngs, name + ".png")
             else:    
                 png = join(path_pngs, "%04d_%s.png"%(counter, light_dir))
-            w, h = psd_f[0].size
+            w, h = psd_f.width, psd_f.height
+            # w, h = psd_f[0].size
             # read each layer in the opened psd file
             # the parse logic here is terrible...
             for i in range(len(psd_f)):    
@@ -321,9 +325,9 @@ def png_refine(path_pngs, path_output):
 if __name__ == "__main__":
     # '''psd layer to separate png images'''
     # PATH_TO_PSD = ["../dataset/raw/Natural", "../dataset/raw/NEW", "../dataset/raw/REFINED"]
-    # PATH_TO_PSD = ["../dataset/raw/D5"]
+    # PATH_TO_PSD = ["../dataset/raw/D8"]
     # OUT_PATH = "../dataset/Natural_png_rough"
-    # psd_to_pngs(PATH_TO_PSD, OUT_PATH, 415, debug = False)
+    # psd_to_pngs(PATH_TO_PSD, OUT_PATH, 661, debug = False)
     
 
     '''correct shading layers'''
