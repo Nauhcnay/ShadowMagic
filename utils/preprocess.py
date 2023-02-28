@@ -139,12 +139,12 @@ def psd_to_pngs(path_psd, path_pngs, counter, debug = False):
                             layer_to_png(psd_f, i, lname, png, (h, w))
             counter += 1
 
-def flat_to_fillmap(flat):
+def flat_to_fillmap(flat, second_pass = True):
     '''
     flat png to fillmap, we need to consider flat always
         have alpha channel
     '''
-    print("Log:\tconverting flat PNG to fill map...")
+    # print("Log:\tconverting flat PNG to fill map")
     h, w = flat.shape[0], flat.shape[1]
     alpha_channel = flat[:,:,3]
     r, g, b = flat[:,:,0], flat[:,:,1], flat[:,:,2]# split to r, g, b channel
@@ -156,7 +156,8 @@ def flat_to_fillmap(flat):
     color_map = [np.array([0,0,0,0]), np.array([0,0,0,255])]
     th1 = h * w *5e-6
     th2 = h * w *5e-4
-    for c in tqdm(np.unique(color_channel)):
+    # first pass
+    for c in np.unique(color_channel):
         if c == -1: continue # skip transparent color
         if c == 0: continue # skip black color, it should be the line drawing
         # check if this region should be transparent
@@ -164,7 +165,7 @@ def flat_to_fillmap(flat):
         # find bbox of the mask
         t, l, b, r = get_bbox(mask)
         mask_bsize = (r - l) * (b - t)
-        if mask.sum() < th1 or (mask_bsize > 10 * mask.sum() and mask.sum() < th2) or mask_bsize > 50 * mask.sum():
+        if mask.sum() < th1 or (mask_bsize > 10 * mask.sum() and mask.sum() < th2):
             fill[mask] = 1
             continue
         c_alpha = fill[mask]
@@ -178,7 +179,21 @@ def flat_to_fillmap(flat):
         # update color index and dict
         color_idx += 1
         color_map.append(int_to_color(c))
+    # second pass
+    if second_pass:
+        remove_stray_in_fill(fill)
     return fill.astype(int), np.array(color_map).astype(np.uint8)
+
+def remove_stray_in_fill(fill):
+    for c in np.unique(fill):
+        if c == 1 or c == -1 or c == 0: continue
+        masks = (fill == c).astype(np.uint8)
+        _, regions = cv2.connectedComponents(masks, connectivity = 8)
+        for r in np.unique(regions):
+            if r == 0: continue
+            rmask = regions == r
+            if rmask.sum() <= 16:
+                fill[rmask] = 1
 
 def get_bbox(mask, pt_mode = False):
     # mask should be a boolean array
@@ -193,12 +208,12 @@ def get_bbox(mask, pt_mode = False):
     return top, left, bottom, right
 
 def shadow_to_fillmap(shadow):
-    print("Log:\tconverting shadow to fill map...")
+    # print("Log:\tconverting shadow to fill map...")
     h, w = shadow.shape
     fill = np.ones((h,w))
     color_idx = 2
     color_map = [np.array(0), np.array(0)]
-    for c in tqdm(np.unique(shadow)):
+    for c in np.unique(shadow):
         mask = (shadow == c).squeeze()
         fill[mask] = color_idx
         color_map.append(np.array(c).astype(np.uint8))
@@ -219,7 +234,7 @@ def int_to_color(color):
     b = int(color % 1000)
     return np.array([r, g, b, 255])
 
-def flat_refine(flat, line, second_pass = False):
+def flat_refine(flat, line, second_pass = True):
     ''' 
     Given: 
         flat, a numpy array as the flat png
@@ -229,6 +244,7 @@ def flat_refine(flat, line, second_pass = False):
     '''
     # convert line from rgba to bool mask
     # and interestingly, they use alpha channel as the grayscal image...
+    
     if len(line.shape) == 3:
         line_gray = 255 - line[:,:,3]
     else:
@@ -241,44 +257,38 @@ def flat_refine(flat, line, second_pass = False):
     flat_a = flat[:,:,3]
     flat[:,:,:3] = flat[:,:,:3] * np.repeat(np.expand_dims((flat_a == 255).astype(int), -1),3,-1)
     # convert flat to fill map
-    fill, color_map = flat_to_fillmap(flat)
+    fill, color_map = flat_to_fillmap(flat, second_pass)
     # set line drawing into the fill map
     fill[(255 - line_gray).astype(bool)] = 1
-    # remove stray regions
-    flat_refined =  fillmap_to_color(fill, color_map)
-    for r in np.unique(fill):
-        mask = fill == r
-        if mask.sum() < 10:
-            fill[mask] = 1
+    # # remove stray regions
+    # flat_refined =  fillmap_to_color(fill, color_map)
+    # for r in np.unique(fill):
+    #     mask = fill == r
+    #     if mask.sum() < 10:
+    #         fill[mask] = 1
     fill = thinning(fill)
     flat_refined =  fillmap_to_color(fill, color_map)
     return flat_refined, fill
 
-def binary_shadow(shadow):
+def grayscale_shadow(shadow):
     bshadow = 255 - shadow[:, :, 3]
     return bshadow
 
-def mask_shadow(fillmap, shadow, line, split = False):
+def mask_shadow(fillmap, shadow, line, soft = False):
     line = line[:,:,3]
     line_thres = cv2.adaptiveThreshold(line, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11,0)
-    shadow = binary_shadow(shadow)
-
-    if split is False:
-        mask = fillmap == 0
-        # kernel = np.array([[0,1,0],[1,1,1],[0,1,0]]).astype(np.uint8)
-        # mask = cv2.dilate(mask.astype(np.uint8)*255, kernel, iterations = 2)
-        shadow[mask.astype(bool)] = 255
+    shadow = grayscale_shadow(shadow)
+    mask = fillmap == 0
+    shadow[mask.astype(bool)] = 255
+    if soft == False:
         _, shadow = cv2.threshold(shadow,200,255,cv2.THRESH_BINARY)
         # remove stray shadows
         fill, color_map = shadow_to_fillmap(shadow)
         fill[line_thres==255] = 1
+        remove_stray_in_fill(fill)
         fill = thinning(fill)
         shadow = fillmap_to_color(fill, color_map)
-        return shadow
-    else:
-        # not sure if this branch is necessary
-        # split shadow region by flat region
-        pass
+    return shadow
 
 def png_refine(path_pngs, path_output):
     for png in os.listdir(path_pngs):
@@ -310,13 +320,18 @@ def png_refine(path_pngs, path_output):
         # line = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "line"))))
         # shadow = np.array(Image.open(os.path.join(path_pngs, png.replace("flat", "shadow"))))
         # refine pngs
+        fill = None
         if os.path.exists(os.path.join(path_output, png)) is False:
             flat, fill = flat_refine(flat, edge)
+            print("log:\trefined flat to %d regions"%len(np.unique(fill)))
             Image.fromarray(flat).save(os.path.join(path_output, png))
         if os.path.exists(os.path.join(path_output, png.replace("flat", "shadow"))) is False:
-            if os.path.exists(os.path.join(path_output, png)) is True:
-                flat, fill = flat_refine(flat, edge)
-            shadow_full = mask_shadow(fill, shadow, line)
+            if os.path.exists(os.path.join(path_output, png)) is True and fill is None:
+                flat = np.array(Image.open(os.path.join(path_output, png)))
+                _, fill = flat_refine(flat, edge, False)
+                print("log:\topenning flat with %d regions"%len(np.unique(fill)))
+            # print("log:\trefining shadow")
+            shadow_full = mask_shadow(fill, shadow, line, False)
             Image.fromarray(shadow_full).save(os.path.join(path_output, png.replace("flat", "shadow")))
         # shadow_split = mask_shadow(fill, shadow, line, True)
         # save to results to target folder
