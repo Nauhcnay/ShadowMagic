@@ -164,7 +164,7 @@ def flat_to_fillmap(flat):
         # find bbox of the mask
         t, l, b, r = get_bbox(mask)
         mask_bsize = (r - l) * (b - t)
-        if mask.sum() < th1 or (mask_bsize > 10 * mask.sum() and mask.sum() < th2):
+        if mask.sum() < th1 or (mask_bsize > 10 * mask.sum() and mask.sum() < th2) or mask_bsize > 50 * mask.sum():
             fill[mask] = 1
             continue
         c_alpha = fill[mask]
