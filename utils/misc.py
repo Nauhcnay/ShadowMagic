@@ -12,9 +12,9 @@ try:
 except:
     from preprocess import fillmap_to_color, flat_to_fillmap
 
-def resize_hw(h, w, size):
+def resize_hw(h, w, size, short = True):
     # we resize the shorter edge to the target size
-    if h > w:
+    if (h > w and short) or (h <= w and short == False):
         ratio =  h / w
         h = int(size * ratio)
         w = size
@@ -83,6 +83,18 @@ def color_hex_to_dec(color):
     g = int(color[3:5], 16)
     b = int(color[5:], 16)
     return [r, g, b, 255]
+
+def hist_equ(img, mask = None):
+    # histogram equalization
+    hist, bins = np.histogram(img.flatten(), 256, [0, 256])
+    cdf = hist.cumsum()
+    cdf_m = np.ma.masked_equal(cdf, 255)
+    cdf_m = (cdf_m - cdf_m.min()) / (np.partition(cdf_m, -2)[-2] - cdf_m.min()) * 255
+    # cdf = np.ma.filled(cdf_m, 0).astype(np.uint8)
+    img = cdf_m[img]
+    if mask is not None:
+        img[mask] = 255
+    return img
 
 if __name__ == "__main__":
     f_json = "../samples/jsonExample.json"

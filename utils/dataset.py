@@ -21,23 +21,24 @@ class BasicDataset(Dataset):
         # we won't resize the image now, let's see how it will works
         self.resize = resize
         # scan the file list if necessary
-        if exists(join(img_path, "img_list.txt")) == False:
-            self.scan_imgs()
-        with open(join(img_path, "img_list.txt"), 'r') as f:
-            self.ids = f.readlines()
-        # split validation set, let's use 5% samples for validation
-        val_idx = int(len(self.ids) * 0.95)
+        self.dpath_val = "img_list_val.txt"
+        self.dpath_train = "img_list_train.txt"
         if val:
-            self.ids = self.ids[val_idx:]
+            self.dpath = self.dpath_val
         else:
-            self.ids = self.ids[:val_idx]
+            self.dpath = self.dpath_train
+
+        if exists(join(img_path, self.dpath)) == False:
+            self.scan_imgs()
+        else:
+            with open(join(img_path, self.dpath), 'r') as f:
+                self.ids = f.readlines()
         self.length = len(self.ids)
         # set dirction dict, mapping text to float number
         self.to_dir_label = {"right": 0.25, "left":0.5, "back":0.75, "top":1.0}
         self.lable_flip = {0.25:0.5, 0.5:0.25}
         self.kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
         logging.info(f'Creating dataset with {len(self.ids)} examples')
-
 
     def scan_imgs(self):
         # helper function to scan the full dataset
@@ -49,8 +50,20 @@ class BasicDataset(Dataset):
                 if exists(join(img_path, img.replace("line", "flat"))) and\
                     exists(join(img_path, img.replace("line", "shadow"))):
                     imgs.append(join(img_path, img))
-        with open(join(self.img_path, "img_list.txt"), 'w') as f:
-            f.write('\n'.join(imgs))
+        # split to train and validation set
+        val_idx = int(len(imgs) * 0.95)
+        val = imgs[val_idx:]
+        train = imgs[:val_idx]
+        if self.val:
+            self.ids = val
+        else:
+            self.ids = train
+        # write to files
+        with open(join(self.img_path, self.dpath_train), 'w') as f:
+            f.write('\n'.join(train))
+        with open(join(self.img_path, self.dpath_val), 'w') as f:
+            f.write('\n'.join(val))
+
         print("Log:\tdone")
 
     def remove_alpha(self, img, gray = False):
@@ -128,7 +141,6 @@ class BasicDataset(Dataset):
             bbox = self.random_bbox(img_np)
             img_np, line_np, shad_np, flat_mask_np, shade_edge_np = self.crop([img_np, line_np, shad_np, flat_mask_np, shade_edge_np], bbox)
 
-        
         # clip values
         img_np = img_np.clip(0, 255)
         shad_np = shad_np.clip(0, 255)

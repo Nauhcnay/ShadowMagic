@@ -62,17 +62,16 @@ def anisotropic_penalty(pre, line, size = 3, k = 1):
     loss = (pre_ap * line_ap).sum()
     return loss
     
-def weighted_bce_loss(pre, target):
+def weighted_bce_loss(pre, target, flat_mask):
     # compute loss map
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
     # compute loss mask
-    weights = [1, 1, 0.1, 0.1]
-    mask_pre = torch.sigmoid(pre) > 0.5
-    mask_pos = target.bool()
-    mask_neg = torch.logical_not(mask_pos)
-    mask_fn = torch.logical_and(torch.logical_not(mask_pre), mask_pos)
-    mask_fp = torch.logical_and(mask_pre, mask_neg)
-    masks = [mask_neg, mask_pos, mask_fp, mask_fn]
+    weights = [0.1, 1, 1]
+    flat_mask = flat_mask.bool()
+    mask_outflat = torch.logical_not(flat_mask)
+    mask_pos = torch.logical_and(target.bool(), flat_mask)
+    mask_neg = torch.logical_and(torch.logical_not(target.bool()), flat_mask)
+    masks = [mask_outflat, mask_neg, mask_pos]
     # compute final loss
     loss = 0
     avg = 0
@@ -135,6 +134,7 @@ def train_net(
     #optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
     optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
     # scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones = [200, 400], gamma = 0.1, verbose = True)
+
     # create the loss function
     # the task is in fact a binary classification problem
     if l1_loss:
@@ -164,7 +164,7 @@ def train_net(
 
     for epoch in range(epochs):
         # train
-        with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
+        with tqdm(total=n_train, unit='img') as pbar:
             net.train()
             epoch_loss = 0
             for imgs, lines, gts_list, flat_mask, shade_edge, label in train_loader:
@@ -180,6 +180,7 @@ def train_net(
                 label = label.to(device=device, dtype=torch.float32)
 
                 # forward
+                optimizer.zero_grad()
                 pred, pred_d2x, pred_d4x, pred_d8x = net(imgs, label)
                 
                 # compute loss
@@ -188,23 +189,21 @@ def train_net(
                     pred = denormalize(pred)
                     loss = criterion(pred, gts)
                 else:
-                    loss_bce = criterion(pred, gts)
+                    loss_bce = criterion(pred, gts, flat_mask)
                     loss = loss + loss_bce
                 if ap:
                     loss_ap = anisotropic_penalty(pred, shade_edge, size = aps)
                     loss = loss + 1e-6 * loss_ap
 
                 # record loss
-                epoch_loss += loss.item()
-                pbar.set_postfix(**{'Loss:': loss.item()})
+                epoch_loss += loss.item()   
+                pbar.set_description("Epoch:%d/%d, CE Loss:%.4f"%(epoch+1, epochs, loss.item()))
 
                 # back propagate
-                optimizer.zero_grad()
                 loss.backward()
                 # nn.utils.clip_grad_value_(net.parameters(), 0.1)
                 optimizer.step()
                 # scheduler.step()
-                pbar.update(len(imgs))
                 
                 # record the loss more frequently
                 if global_step % 350 == 0 and args.log:
@@ -220,6 +219,7 @@ def train_net(
                         pred = denormalize(pred)
                     else:
                         pred = torch.sigmoid(pred)
+                        # add advanced filter 
                     sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
                                 (pred > 0.5).repeat(1, 3, 1, 1)), dim = 0)
 
@@ -248,17 +248,21 @@ def train_net(
         if epoch % 50 == 0:
             logging.info('Starting Validation')
             net.eval()
+            val_bceloss = 0
+            val_ap = 0
             with torch.no_grad():
                 val_counter = 0
                 val_figs = []
                 dims = None
-                for val_img, val_lines, val_gt_list, _, _, label in val_loader:
-                    if val_counter > 5: break
+                for val_img, val_lines, val_gt_list, val_flat_mask, val_shade_edge, label in val_loader:
+                    
                     # predict
                     val_gt, _, _, _ = val_gt_list
                     val_img = val_img.to(device=device, dtype=torch.float32)
                     val_gt = val_gt.to(device=device, dtype=torch.float32)
                     val_lines = val_lines.to(device=device, dtype=torch.float32)
+                    val_shade_edge = val_shade_edge.to(device=device, dtype=torch.float32)
+                    val_flat_mask = val_flat_mask.to(device=device, dtype=torch.float32)
                     label = label.to(device=device, dtype=torch.float32)
                     val_pred, _, _, _ = net(val_img, label)
                     if l1_loss:
@@ -266,24 +270,31 @@ def train_net(
                         val_pred = denormalize(val_pred)
                     else:
                         val_pred = torch.sigmoid(val_pred)
-                    # save result
-                    val_img = tensor_to_img(denormalize(val_img))
-                    val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
-                    val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
-                    val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
-                    val_sample = np.concatenate((val_img, val_pred, val_pred_2, val_gt), axis = 1)
-                    if val_counter == 0:
-                        dims = (val_sample.shape[1], val_sample.shape[0])
-                    else:
-                        assert dims is not None
-                        val_sample = cv2.resize(val_sample, dims, interpolation = cv2.INTER_AREA)
-                    val_counter += 1
-                    val_figs.append(val_sample)    
+                    val_bceloss += criterion(val_pred, val_gt, val_flat_mask)
+                    if ap:
+                        val_ap = anisotropic_penalty(val_pred, val_shade_edge, size = aps)
+                    # save first 5 prdictions as result
+                    if val_counter < 5:
+                        val_img = tensor_to_img(denormalize(val_img))
+                        val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
+                        val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
+                        val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
+                        val_sample = np.concatenate((val_img, val_pred, val_pred_2, val_gt), axis = 1)
+                        if val_counter == 0:
+                            dims = (val_sample.shape[1], val_sample.shape[0])
+                        else:
+                            assert dims is not None
+                            val_sample = cv2.resize(val_sample, dims, interpolation = cv2.INTER_AREA)
+                        val_counter += 1
+                        val_figs.append(val_sample)
                 val_figs = np.concatenate(val_figs, axis = 0)
                 Image.fromarray(val_figs).save(os.path.join(result_folder, "%06d_val.png"%global_step))
                 if args.log:
                     val_fig_res = wandb.Image(val_figs)
                     wandb.log({"Val Result":val_fig_res}, step = global_step)
+                    wandb.log({'Val Loss': (val_bceloss / val_counter)}, step = global_step)
+                    if ap:
+                        wandb.log({'Val Anisotropic Penalty': (val_ap / val_counter)}, step = global_step)
         # save model
         if save_cp and epoch % 100 == 0:
             # save trying result in single folder each time
@@ -303,7 +314,7 @@ def get_args():
     parser.add_argument('-m', '--multi-gpu', action='store_true')
     parser.add_argument('-a', action='store_true', dest='anisotropic_penalty', 
                         default='use anisotropic penalty')
-    parser.add_argument('-c', '--crop-size', metavar='C', type=int, default=256,
+    parser.add_argument('-c', '--crop-size', metavar='C', type=int, default=512,
                         help='the size of random cropping', dest="crop")
     parser.add_argument('-aps', '--ap-size', metavar='C', type=int, default=3,
                         help='the size for anisotropic penalty', dest="ap_size")
@@ -311,14 +322,15 @@ def get_args():
                         help='the name for wandb logging', dest="name")
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=1,
                         help='Batch size', dest='batchsize')
-    parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.00005,
+    # 5e-5
+    parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=1e-4,
                         help='Learning rate', dest='lr')
     parser.add_argument('-f', '--load', dest='load', type=str, default=False,
                         help='Load model from a .pth file')
     parser.add_argument('-r', '--resize', dest="resize", type=int, default=1024,
                         help='resize the shorter edge of the training image')
     parser.add_argument('-i', '--imgs', dest="imgs", type=str,
-                        help='the path to training set')
+                        help='the path to training set', default = "./dataset")
     parser.add_argument('--log', action="store_true", help='enable wandb log')
     parser.add_argument('--l1', action="store_true", help='use L1 loss instead of BCE loss')
     parser.add_argument('-do', action="store_true", help='enable drop out')

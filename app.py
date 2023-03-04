@@ -15,8 +15,10 @@ from os.path import join, exists
 from scipy.signal import convolve2d as conv2d
 from utils.l0_gradient_minimization import l0_gradient_minimization_2d as l0_2d
 from utils.misc import resize_hw, remove_alpha
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import DBSCAN, MeanShift
 from skimage.segmentation import felzenszwalb, mark_boundaries
+from cv2.ximgproc import guidedFilter
+from utils.misc import hist_equ
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -44,16 +46,19 @@ def init_from_args(line, size, direction = None):
     line_np = 255 - line_np[:, :, 3]
     flat = np.array(Image.open(line.replace("line", "flat")))
     shadow = np.array(Image.open(line.replace("line", "shadow")))
+    flat_alpha = flat[..., 3]
     flat = remove_alpha(flat)
     img_np = flat * (np.expand_dims(line_np, axis = -1) / 255)
     h, w = line_np.shape[0], line_np.shape[1]
-    h, w = resize_hw(h, w, size)
+    h, w = resize_hw(h, w, size, False)
     img_np = cv2.resize(img_np, (w, h), interpolation = cv2.INTER_AREA)
     shadow = cv2.resize(shadow, (w, h), interpolation = cv2.INTER_NEAREST)
+    flat_alpha = cv2.resize(flat_alpha, (w, h), interpolation = cv2.INTER_NEAREST)
+    line_np = cv2.resize(line_np, (w, h), interpolation = cv2.INTER_NEAREST)
     shadow = norm_shadow(shadow)
     img = F.to_tensor(img_np / 255).to(device).unsqueeze(0).float()
     img = F.normalize(img, 0.5, 0.5)
-    return img, img_np, shadow, label
+    return img, img_np, shadow, label, flat_alpha, line_np, flat
 
 def shadowing(img, label):
     net.eval()
@@ -176,44 +181,94 @@ def main():
     else:
         for line in os.listdir(args.l):
             if 'line' not in line: continue
-            if os.path.exists(line.replace("line", "res")): continue
             line = join(args.l, line)
-            img, img_np, shadow, label = init_from_args(line, args.s, args.d)
+            if os.path.exists(line.replace("line", "all")): continue
+            img, img_np, shadow, label, flat_alpha, line_np, flat = init_from_args(line, args.s, args.d)
             pre = shadowing(img, label)
-            pre_ = (pre.copy() * 255).astype(np.uint8)
-            pre_[pre_ < 100] = 0
-            pre_seg_label = felzenszwalb(pre_, scale = 32, sigma = 0.5, min_size = 32)
-            pre_seg = mark_boundaries(pre_, pre_seg_label)
-            Image.fromarray((pre_seg * 255).astype(np.uint8)).show()
 
-            # I think filtering seems not work
-            # add gaussain filter
-            pre_g = cv2.GaussianBlur(pre_, (5, 5), 0) 
-            # add billateral filter
-            pre_b = cv2.bilateralFilter(pre_, 15, 150, 75)
-            # add L0 gradient minimization filter
-            pre_l = l0_2d(pre_, lmd = 0.005, beta_max = 1.0e5, beta_rate = 1.5, max_iter = 100).astype(np.uint8)
-            shadow_np = np.repeat((shadow * 255).astype(np.uint8)[..., np.newaxis], 3, axis = -1)
-            pre_np = np.repeat((pre * 255).astype(np.uint8)[..., np.newaxis], 3, axis = -1)
-            pre_g_np = np.repeat(pre_g.astype(np.uint8)[..., np.newaxis], 3, axis = -1)
-            pre_b_np = np.repeat(pre_b.astype(np.uint8)[..., np.newaxis], 3, axis = -1)
-            # pre_l_np = vis_heatmap(pre_l)
-            pre_l_np = np.repeat(pre_l.astype(np.uint8)[..., np.newaxis], 3, axis = -1)
-            pres = np.concatenate((shadow_np, 255 - pre_np, 255 - pre_g_np, 255 - pre_b_np, 255 - pre_l_np), axis = 1)
-            pres_thres = np.concatenate((thres(shadow_np), thres(255 - pre_np), thres(255 - pre_g_np), thres(255 - pre_b_np), thres(255 - pre_l_np)), axis = 1)
-            Image.fromarray(pres).save(line.replace('line', "pres"))
-            Image.fromarray(pres_thres).save(line.replace('line', "pres_thres"))
+            '''
+            level adjustment
+            '''
+
+            '''
+            segmentation 
+            '''
+            # pre_seg_label = felzenszwalb(pre_, scale = 32, sigma = 0.5, min_size = 32)
+            # pre_seg = mark_boundaries(pre_, pre_seg_label)
+            # Image.fromarray((pre_seg * 255).astype(np.uint8)).show()
+
+
+            '''
+            filter
+            '''
+            # # I think filtering seems not work
+            # # add gaussain filter
+            # pre_g = cv2.GaussianBlur(pre_, (5, 5), 0) 
+            # # add billateral filter
+            # pre_b = cv2.bilateralFilter(pre_, 15, 150, 75)
+            # # add L0 gradient minimization filter
+            # pre_l = l0_2d(pre_, lmd = 0.005, beta_max = 1.0e5, beta_rate = 1.5, max_iter = 100).astype(np.uint8)
+            # shadow_np = np.repeat((shadow * 255).astype(np.uint8)[..., np.newaxis], 3, axis = -1)
+            # pre_np = np.repeat((pre * 255).astype(np.uint8)[..., np.newaxis], 3, axis = -1)
+            # pre_g_np = np.repeat(pre_g.astype(np.uint8)[..., np.newaxis], 3, axis = -1)
+            # pre_b_np = np.repeat(pre_b.astype(np.uint8)[..., np.newaxis], 3, axis = -1)
+            # # pre_l_np = vis_heatmap(pre_l)
+            # pre_l_np = np.repeat(pre_l.astype(np.uint8)[..., np.newaxis], 3, axis = -1)
+            # pres = np.concatenate((shadow_np, 255 - pre_np, 255 - pre_g_np, 255 - pre_b_np, 255 - pre_l_np), axis = 1)
+            # pres_thres = np.concatenate((thres(shadow_np), thres(255 - pre_np), thres(255 - pre_g_np), thres(255 - pre_b_np), thres(255 - pre_l_np)), axis = 1)
+            # Image.fromarray(pres).save(line.replace('line', "pres"))
+            # Image.fromarray(pres_thres).save(line.replace('line', "pres_thres"))
             
+            
+            '''
+            cluster
+            '''
             # let's try clustering
-
-
-            pre = thres_norm_shadowmap(pre) # threshold is 0.5 by default
-            img_pre = overlay_shadow(img_np, pre)
-            img_gt = overlay_shadow(img_np, shadow)
-            Image.fromarray(img_pre.astype(np.uint8)).save(line.replace('line', "pre_all"))
-            Image.fromarray(img_gt.astype(np.uint8)).save(line.replace('line', "gt_all"))
-            # Image.fromarray((pre*255).clip(0, 255).astype(np.uint8)).save(line.replace('line', "heatmap"))
             
+            '''
+            wirte to result
+            '''
+            # 1. raw and raw thresholded
+            pre_ = 255 - (pre.copy() * 255).astype(np.uint8)
+            mask_f = flat_alpha == 0
+            pre_[mask_f] = 255
+            pre[mask_f] = 0
+            pre_ = hist_equ(pre_, mask_f)
+            pre_th = (pre_ < 125).astype(np.uint8) * 255
+
+            Image.fromarray(pre_.astype(np.uint8)).save("heatmap.png")
+            Image.fromarray(flat_alpha).save("mask.png")
+            Image.fromarray(line_np).save("line.png")
+            Image.fromarray(flat.astype(np.uint8)).save("flat.png")
+            
+
+            # add filter
+            gt = (shadow == 0.5).astype(np.uint8) * 255
+            pre_shadow = thres_norm_shadowmap(1 - pre_ / 255) # threshold is 0.5 by default
+            raw = np.concatenate((pre_, pre_th, gt), axis = 1)[..., np.newaxis].repeat(3, axis = -1)
+
+            # 2. shadow with line only
+
+            # pre_gf = guidedFilter(flat_alpha, np.ma.getdata(pre_).astype(np.uint8), radius = 3, eps = 70)
+            # pre_gf = guidedFilter(flat_alpha, pre_, radius = 13, eps = 70)
+
+            pre_gf_shadow = thres_norm_shadowmap(1 - pre_gf / 255) # threshold is 0.5 by default
+            img_pre_l = overlay_shadow(img_np, pre_gf_shadow)
+            img_gt_l = overlay_shadow(img_np, shadow)
+            img_l = np.concatenate((img_np, img_pre_l, img_gt_l), axis = 1)
+
+            # 3. shadow with both line and flat 
+            img_pre = overlay_shadow(img_np, pre_shadow)
+            img_gt = overlay_shadow(img_np, shadow)
+            img_f = np.concatenate((img_np, img_pre, img_gt), axis = 1)
+
+            # save all results to one single image
+            res = np.concatenate((raw, img_l, img_f), axis = 0)
+            Image.fromarray(res.astype(np.uint8)).save(line.replace('line', "all"))
+
+            '''
+            visualize error
+            '''
             # visualize the true positive (green), false positive (red), ture negative (black), false negative (blue) regions of the prediction
             # pre_ = pre > shadow_thres
             # shadow = np.logical_not(shadow == 1)
@@ -234,6 +289,9 @@ def main():
             # res[mask_fn] = 3
             # res = colors[res.astype(int)]
             # Image.fromarray(res.astype(np.uint8)).save(line.replace('line', "comp"))
+
+
+
 
 # thanks for https://stackoverflow.com/questions/29731726/how-to-calculate-a-gaussian-kernel-matrix-efficiently-in-numpy
 def gkern(l=5, sig=1.):

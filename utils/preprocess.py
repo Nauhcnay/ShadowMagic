@@ -292,6 +292,7 @@ def mask_shadow(fillmap, shadow, line, soft = False):
 
 def png_refine(path_pngs, path_output):
     for png in os.listdir(path_pngs):
+        if "0269" in png or "0270" in png or "0275" in png or "0276" in png: continue
         if "flat" not in png: continue
         print("log:\topening %s"%png)
         if os.path.exists(os.path.join(path_output, png)) and os.path.exists(os.path.join(path_output, png.replace("flat", "shadow"))) \
