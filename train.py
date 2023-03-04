@@ -164,85 +164,84 @@ def train_net(
 
     for epoch in range(epochs):
         # train
-        with tqdm(total=n_train, unit='img') as pbar:
-            net.train()
-            epoch_loss = 0
-            for imgs, lines, gts_list, flat_mask, shade_edge, label in train_loader:
-                gts, gts_d2x, gts_d4x, gts_d8x = gts_list
-                imgs = imgs.to(device=device, dtype=torch.float32)
-                lines = lines.to(device=device, dtype=torch.float32)
-                gts = gts.to(device=device, dtype=torch.float32)
-                gts_d2x = gts_d2x.to(device=device, dtype=torch.float32)
-                gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
-                gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
-                flat_mask = flat_mask.to(device=device, dtype=torch.float32)
-                shade_edge = shade_edge.to(device=device, dtype=torch.float32)
-                label = label.to(device=device, dtype=torch.float32)
+        pbar = tqdm(train_loader)
+        epoch_loss = 0
+        for imgs, lines, gts_list, flat_mask, shade_edge, label in pbar:
+            gts, gts_d2x, gts_d4x, gts_d8x = gts_list
+            imgs = imgs.to(device=device, dtype=torch.float32)
+            lines = lines.to(device=device, dtype=torch.float32)
+            gts = gts.to(device=device, dtype=torch.float32)
+            gts_d2x = gts_d2x.to(device=device, dtype=torch.float32)
+            gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
+            gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
+            flat_mask = flat_mask.to(device=device, dtype=torch.float32)
+            shade_edge = shade_edge.to(device=device, dtype=torch.float32)
+            label = label.to(device=device, dtype=torch.float32)
 
-                # forward
-                optimizer.zero_grad()
-                pred, pred_d2x, pred_d4x, pred_d8x = net(imgs, label)
-                
-                # compute loss
-                loss = 0
-                if l1_loss:
-                    pred = denormalize(pred)
-                    loss = criterion(pred, gts)
-                else:
-                    loss_bce = criterion(pred, gts, flat_mask)
-                    loss = loss + loss_bce
+            # forward
+            optimizer.zero_grad()
+            pred, pred_d2x, pred_d4x, pred_d8x = net(imgs, label)
+            
+            # compute loss
+            loss = 0
+            if l1_loss:
+                pred = denormalize(pred)
+                loss = criterion(pred, gts)
+            else:
+                loss_bce = criterion(pred, gts, flat_mask)
+                loss = loss + loss_bce
+            if ap:
+                loss_ap = anisotropic_penalty(pred, shade_edge, size = aps)
+                loss = loss + 1e-6 * loss_ap
+
+            # record loss
+            epoch_loss += loss.item()   
+            pbar.set_description("Epoch:%d/%d, CE Loss:%.4f"%(epoch+1, epochs, loss.item()))
+
+            # back propagate
+            loss.backward()
+            # nn.utils.clip_grad_value_(net.parameters(), 0.1)
+            optimizer.step()
+            # scheduler.step()
+            
+            # record the loss more frequently
+            if global_step % 350 == 0 and args.log:
+                wandb.log({'Loss': loss_bce.item()}, step = global_step) 
                 if ap:
-                    loss_ap = anisotropic_penalty(pred, shade_edge, size = aps)
-                    loss = loss + 1e-6 * loss_ap
+                    wandb.log({'Anisotropic Penalty': loss_ap.item()}, step = global_step) 
 
-                # record loss
-                epoch_loss += loss.item()   
-                pbar.set_description("Epoch:%d/%d, CE Loss:%.4f"%(epoch+1, epochs, loss.item()))
+            # record the image output 
+            if global_step % 750 == 0:
+                imgs = denormalize(imgs)
+                if l1_loss:
+                    gts = denormalize(gts)
+                    pred = denormalize(pred)
+                else:
+                    pred = torch.sigmoid(pred)
+                    # add advanced filter 
+                sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
+                            (pred > 0.5).repeat(1, 3, 1, 1)), dim = 0)
 
-                # back propagate
-                loss.backward()
-                # nn.utils.clip_grad_value_(net.parameters(), 0.1)
-                optimizer.step()
-                # scheduler.step()
+                result_folder = os.path.join("./results/train/", dt_formatted)
+                if os.path.exists(result_folder) is False:
+                    logging.info("Creating %s"%str(result_folder))
+                    os.makedirs(result_folder)
+                utils.save_image(
+                    sample,
+                    os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"),
+                    nrow=int(imgs.shape[0]),
+                    normalize=True,
+                    range=(0, 1),
+                )
                 
-                # record the loss more frequently
-                if global_step % 350 == 0 and args.log:
-                    wandb.log({'Loss': loss_bce.item()}, step = global_step) 
-                    if ap:
-                        wandb.log({'Anisotropic Penalty': loss_ap.item()}, step = global_step) 
-
-                # record the image output 
-                if global_step % 750 == 0:
-                    imgs = denormalize(imgs)
-                    if l1_loss:
-                        gts = denormalize(gts)
-                        pred = denormalize(pred)
-                    else:
-                        pred = torch.sigmoid(pred)
-                        # add advanced filter 
-                    sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
-                                (pred > 0.5).repeat(1, 3, 1, 1)), dim = 0)
-
-                    result_folder = os.path.join("./results/train/", dt_formatted)
-                    if os.path.exists(result_folder) is False:
-                        logging.info("Creating %s"%str(result_folder))
-                        os.makedirs(result_folder)
-                    utils.save_image(
-                        sample,
-                        os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"),
-                        nrow=int(imgs.shape[0]),
-                        normalize=True,
-                        range=(0, 1),
-                    )
-                    
-                    '''let's put the training result on the wandb '''
-                    if args.log:
-                        fig_res = wandb.Image(np.array(
-                            Image.open(os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"))))
-                        wandb.log({'Train Result': fig_res}, step = global_step)
-                    
-                # update the global step
-                global_step += 1
+                '''let's put the training result on the wandb '''
+                if args.log:
+                    fig_res = wandb.Image(np.array(
+                        Image.open(os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"))))
+                    wandb.log({'Train Result': fig_res}, step = global_step)
+                
+            # update the global step
+            global_step += 1
 
         # validation
         if epoch % 50 == 0:
