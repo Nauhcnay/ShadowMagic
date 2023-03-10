@@ -66,7 +66,7 @@ def weighted_bce_loss(pre, target, flat_mask):
     # compute loss map
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
     # compute loss mask
-    weights = [0.01, 1, 1, 0.1, 0.1]
+    weights = [0.001, 1, 1, 0.01, 0.01]
     flat_mask = flat_mask.bool()
     mask_outflat = torch.logical_not(flat_mask)
     mask_pos = torch.logical_and(target.bool(), flat_mask)
@@ -74,8 +74,8 @@ def weighted_bce_loss(pre, target, flat_mask):
     pre_norm = torch.sigmoid(pre)
     mask_FN = torch.logical_and(pre_norm < 0.5, mask_pos) 
     mask_FP = torch.logical_and(pre_norm >= 0.5, mask_neg)
-    masks = [mask_outflat, mask_neg, mask_pos]
-    # masks = [mask_outflat, mask_neg, mask_pos, mask_FN, mask_FP]
+    # masks = [mask_outflat, mask_neg, mask_pos]
+    masks = [mask_outflat, mask_neg, mask_pos, mask_FN, mask_FP]
     # compute final loss
     loss = 0
     avg = 0
