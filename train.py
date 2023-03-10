@@ -74,7 +74,8 @@ def weighted_bce_loss(pre, target, flat_mask):
     pre_norm = torch.sigmoid(pre)
     mask_FN = torch.logical_and(pre_norm < 0.5, mask_pos) 
     mask_FP = torch.logical_and(pre_norm >= 0.5, mask_neg)
-    masks = [mask_outflat, mask_neg, mask_pos, mask_FN, mask_FP]
+    masks = [mask_outflat, mask_neg, mask_pos]
+    # masks = [mask_outflat, mask_neg, mask_pos, mask_FN, mask_FP]
     # compute final loss
     loss = 0
     avg = 0
