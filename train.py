@@ -66,12 +66,15 @@ def weighted_bce_loss(pre, target, flat_mask):
     # compute loss map
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
     # compute loss mask
-    weights = [0.1, 1, 1]
+    weights = [0.01, 1, 1, 0.1, 0.1]
     flat_mask = flat_mask.bool()
     mask_outflat = torch.logical_not(flat_mask)
     mask_pos = torch.logical_and(target.bool(), flat_mask)
     mask_neg = torch.logical_and(torch.logical_not(target.bool()), flat_mask)
-    masks = [mask_outflat, mask_neg, mask_pos]
+    pre_norm = torch.sigmoid(pre)
+    mask_FN = torch.logical_and(pre_norm < 0.5, mask_pos) 
+    mask_FP = torch.logical_and(pre_norm >= 0.5, mask_neg)
+    masks = [mask_outflat, mask_neg, mask_pos, mask_FN, mask_FP]
     # compute final loss
     loss = 0
     avg = 0
@@ -221,7 +224,7 @@ def train_net(
                     pred = denormalize(pred)
                 else:
                     pred = torch.sigmoid(pred)
-                    pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
+                    # pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
                     # add advanced filter 
                 sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
                             (pred > 0.5).repeat(1, 3, 1, 1)), dim = 0)
@@ -273,7 +276,7 @@ def train_net(
                         val_pred = denormalize(val_pred)
                     else:
                         val_pred = torch.sigmoid(val_pred)
-                        val_pred = T.functional.equalize((val_pred*255).to(torch.uint8)).to(torch.float32) / 255
+                        # val_pred = T.functional.equalize((val_pred*255).to(torch.uint8)).to(torch.float32) / 255
                     val_bceloss += criterion(val_pred, val_gt, val_flat_mask)
                     if ap:
                         val_ap = anisotropic_penalty(val_pred, val_shade_edge, size = aps)
