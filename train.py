@@ -278,7 +278,7 @@ def train_net(
                         val_pred = denormalize(val_pred)
                     else:
                         val_pred = torch.sigmoid(val_pred)
-                        val_pred[val_flat_mask] = 0
+                        val_pred[val_flat_mask.bool()] = 0
                         val_pred = T.functional.equalize((val_pred*255).to(torch.uint8)).to(torch.float32) / 255
                     val_bceloss += criterion(val_pred, val_gt, val_flat_mask)
                     if ap:
