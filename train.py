@@ -225,7 +225,8 @@ def train_net(
                     pred = denormalize(pred)
                 else:
                     pred = torch.sigmoid(pred)
-                    # pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
+                    pred[~flat_mask.bool()] = 0
+                    pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
                     # add advanced filter 
                 sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
                             (pred > 0.5).repeat(1, 3, 1, 1)), dim = 0)
@@ -277,7 +278,8 @@ def train_net(
                         val_pred = denormalize(val_pred)
                     else:
                         val_pred = torch.sigmoid(val_pred)
-                        # val_pred = T.functional.equalize((val_pred*255).to(torch.uint8)).to(torch.float32) / 255
+                        val_pred[val_flat_mask] = 0
+                        val_pred = T.functional.equalize((val_pred*255).to(torch.uint8)).to(torch.float32) / 255
                     val_bceloss += criterion(val_pred, val_gt, val_flat_mask)
                     if ap:
                         val_ap = anisotropic_penalty(val_pred, val_shade_edge, size = aps)
