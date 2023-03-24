@@ -66,7 +66,7 @@ def weighted_bce_loss(pre, target, flat_mask):
     # compute loss map
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
     # compute loss mask
-    weights = [0.001, 1, 1, 0.01, 0.01]
+    weights = [1, 1, 1, 0.1, 0.1]
     flat_mask = flat_mask.bool()
     mask_outflat = torch.logical_not(flat_mask)
     mask_pos = torch.logical_and(target.bool(), flat_mask)
@@ -278,8 +278,8 @@ def train_net(
                         val_pred = denormalize(val_pred)
                     else:
                         val_pred = torch.sigmoid(val_pred)
-                        val_pred[val_flat_mask.bool()] = 0
-                        val_pred = T.functional.equalize((val_pred*255).to(torch.uint8)).to(torch.float32) / 255
+                        val_pred[~val_flat_mask.bool()] = 0
+                        # val_pred = T.functional.equalize((val_pred*255).to(torch.uint8)).to(torch.float32) / 255
                     val_bceloss += criterion(val_pred, val_gt, val_flat_mask)
                     if ap:
                         val_ap = anisotropic_penalty(val_pred, val_shade_edge, size = aps)
