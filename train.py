@@ -66,7 +66,7 @@ def weighted_bce_loss(pre, target, flat_mask):
     # compute loss map
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
     # compute loss mask
-    weights = [1, 1, 1, 0.1, 0.1]
+    weights = [0.01, 1, 1, 0.05, 0.05]
     flat_mask = flat_mask.bool()
     mask_outflat = torch.logical_not(flat_mask)
     mask_pos = torch.logical_and(target.bool(), flat_mask)
@@ -86,11 +86,8 @@ def weighted_bce_loss(pre, target, flat_mask):
     avg = 1 if avg == 0 else avg
     return loss / avg
 
-def denormalize(img, hist_equa = False):
+def denormalize(img):
     # denormalize
-    if hist_equa:
-        img = ((img / 2 + 0.5).clamp(0, 1) * 255).to(torch.uint8)
-        return T.functional.equalize(img)
     return (img / 2 + 0.5).clamp(0, 1)
 
 def train_net(
@@ -152,7 +149,7 @@ def train_net(
     
     # start logging
     if args.log:
-        wandb.init(project = "ShadowMagic Ver 0.1", entity="waterheater", name = name)
+        wandb.init(project = "ShadowMagic Ver 0.2", entity="waterheater", name = name)
         wandb.config = {
           "learning_rate": lr,
           "epochs": epochs, 
@@ -226,7 +223,7 @@ def train_net(
                 else:
                     pred = torch.sigmoid(pred)
                     pred[~flat_mask.bool()] = 0
-                    pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
+                    # pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
                     # add advanced filter 
                 sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
                             (pred > 0.5).repeat(1, 3, 1, 1)), dim = 0)
