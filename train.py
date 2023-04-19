@@ -200,7 +200,7 @@ def train_net(
 
             # record loss
             epoch_loss += loss.item()   
-            pbar.set_description("Epoch:%d/%d, CE Loss:%.4f"%(epoch+1, epochs, loss.item()))
+            pbar.set_description("Epoch:%d/%d, CE Loss:%.4f"%(epoch, epochs, loss.item()))
 
             # back propagate
             loss.backward()
