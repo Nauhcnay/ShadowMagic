@@ -130,7 +130,7 @@ class BasicDataset(Dataset):
         img_np = cv2.resize(img_np, (w, h), interpolation = cv2.INTER_AREA)
         line_np = cv2.resize(line_np, (w, h), interpolation = cv2.INTER_AREA)
         shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_NEAREST)
-        flat_mask_np = cv2.resize(255 - flat_mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
+        flat_mask_np = cv2.resize(flat_mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
         shade_edge_np = cv2.resize(shade_edge_np, (w, h), interpolation = cv2.INTER_NEAREST)
 
         # we don't need image augmentation for val
