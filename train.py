@@ -151,15 +151,17 @@ def train_net(
         start_epoch = ckpt['epoch']
         net.load_state_dict(ckpt['model_state_dict'])
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = epochs, last_epoch = start_epoch)
-        scheduler.load_state_dict(ckpt['lr_scheduler_state_dict'])
+        if args.sch:
+            scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = epochs, last_epoch = start_epoch)
+            scheduler.load_state_dict(ckpt['lr_scheduler_state_dict'])
         model_folder = args.model_folder
         result_folder = args.result_folder
     else:
         start_epoch = 0
         args.model_folder = model_folder
         args.result_folder = result_folder
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = epochs, last_epoch = -1)
+        if args.sch:
+            scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = epochs, last_epoch = -1)
     
 
     # create the loss function
@@ -226,7 +228,8 @@ def train_net(
             loss.backward()
             # nn.utils.clip_grad_value_(net.parameters(), 0.1)
             optimizer.step()
-            scheduler.step()
+            if args.sch:
+                scheduler.step()
             
             # record the loss more frequently
             if global_step % 350 == 0 and args.log:
@@ -271,14 +274,24 @@ def train_net(
 
         # save model for every epoch, but since now the dataset is really small, so we save checkpoint at every 5 epoches
         if epoch % 5 == 0:
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': net.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'lr_scheduler_state_dict': scheduler.state_dict(),
-                'param': args
-                },
-              os.path.join(model_folder, "last_epoch.pth"))
+            if args.sch:
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': net.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'lr_scheduler_state_dict': scheduler.state_dict(),
+                    'param': args
+                    },
+                  os.path.join(model_folder, "last_epoch.pth"))
+            else:
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': net.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'lr_scheduler_state_dict': None,
+                    'param': args
+                    },
+                  os.path.join(model_folder, "last_epoch.pth"))
 
         # validation
         if epoch % 75 == 0:
@@ -337,14 +350,24 @@ def train_net(
         if save_cp and epoch % 100 == 0:
             # save trying result in single folder each time
             logging.info('Created checkpoint directory')
-            torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': net.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'lr_scheduler_state_dict': scheduler.state_dict(),
-                        'param': args
-                        },
-                      os.path.join(model_folder, f"CP_epoch{epoch}.pth"))
+            if args.sch:
+                torch.save({
+                            'epoch': epoch,
+                            'model_state_dict': net.state_dict(),
+                            'optimizer_state_dict': optimizer.state_dict(),
+                            'lr_scheduler_state_dict': scheduler.state_dict(),
+                            'param': args
+                            },
+                          os.path.join(model_folder, f"CP_epoch{epoch}.pth"))
+            else:
+                torch.save({
+                            'epoch': epoch,
+                            'model_state_dict': net.state_dict(),
+                            'optimizer_state_dict': optimizer.state_dict(),
+                            'lr_scheduler_state_dict': None,
+                            'param': args
+                            },
+                          os.path.join(model_folder, f"CP_epoch{epoch}.pth"))
             logging.info(f'Checkpoint {epoch} saved !')
 
 def tensor_to_img(t):
@@ -378,6 +401,7 @@ def get_args():
     parser.add_argument('--log', action="store_true", help='enable wandb log')
     parser.add_argument('--l1', action="store_true", help='use L1 loss instead of BCE loss')
     parser.add_argument('-do', action="store_true", help='enable drop out')
+    parser.add_argument('-sch', action="store_true", help='enable learning rate scheduler')
 
     return parser.parse_args()
 
