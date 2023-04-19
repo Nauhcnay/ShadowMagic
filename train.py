@@ -94,6 +94,7 @@ def train_net(
               img_path,
               net,
               device,
+              args,
               epochs=999,
               batch_size=1,
               lr=0.001,
@@ -105,7 +106,8 @@ def train_net(
               name = None,
               drop_out = False,
               ap = False, 
-              aps = 3):
+              aps = 3,
+              ckpt = None):
 
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss)
@@ -134,10 +136,31 @@ def train_net(
         Loss:            {"L1" if l1_loss else "BCE"}
     ''')
 
+    now = datetime.now()
+    dt_formatted = now.strftime("D%Y-%m-%dT%H-%M-%S") 
+    if name is not None:
+        dt_formatted = dt_formatted + "-" + name
+    model_folder = os.path.join("./checkpoints", dt_formatted)
+    result_folder = os.path.join("./results/train/", dt_formatted)
+
     # not sure which optimizer will be better
     #optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
     optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
-    # scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones = [200, 400], gamma = 0.1, verbose = True)
+    
+    if ckpt is not None:
+        start_epoch = ckpt['epoch']
+        net.load_state_dict(ckpt['model_state_dict'])
+        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = epochs, last_epoch = start_epoch)
+        scheduler.load_state_dict(ckpt['lr_scheduler_state_dict'])
+        model_folder = args.model_folder
+        result_folder = args.result_folder
+    else:
+        start_epoch = 0
+        args.model_folder = model_folder
+        args.result_folder = result_folder
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = epochs, last_epoch = -1)
+    
 
     # create the loss function
     # the task is in fact a binary classification problem
@@ -159,14 +182,11 @@ def train_net(
         }
         # wandb.watch(net, log_freq=30)
 
-    now = datetime.now()
-    dt_formatted = now.strftime("D%Y-%m-%dT%H-%M-%S") 
-    if args.name is not None:
-        dt_formatted = dt_formatted + "-" + args.name
-    model_folder = os.path.join("./checkpoints", dt_formatted)
+    
+
     os.makedirs(model_folder)
 
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, start_epoch + epochs):
         # train
         pbar = tqdm(train_loader)
         epoch_loss = 0
@@ -200,13 +220,13 @@ def train_net(
 
             # record loss
             epoch_loss += loss.item()   
-            pbar.set_description("Epoch:%d/%d, CE Loss:%.4f"%(epoch, epochs, loss.item()))
+            pbar.set_description("Epoch:%d/%d, CE Loss:%.4f"%(epoch, start_epoch + epochs, loss.item()))
 
             # back propagate
             loss.backward()
             # nn.utils.clip_grad_value_(net.parameters(), 0.1)
             optimizer.step()
-            # scheduler.step()
+            scheduler.step()
             
             # record the loss more frequently
             if global_step % 350 == 0 and args.log:
@@ -228,7 +248,7 @@ def train_net(
                 sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
                             (pred > 0.5).repeat(1, 3, 1, 1)), dim = 0)
 
-                result_folder = os.path.join("./results/train/", dt_formatted)
+                
                 if os.path.exists(result_folder) is False:
                     logging.info("Creating %s"%str(result_folder))
                     os.makedirs(result_folder)
@@ -248,6 +268,17 @@ def train_net(
                 
             # update the global step
             global_step += 1
+
+        # save model for every epoch, but since now the dataset is really small, so we save checkpoint at every 5 epoches
+        if epoch % 5 == 0:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': net.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'lr_scheduler_state_dict': scheduler.state_dict(),
+                'param': args
+                },
+              os.path.join(model_folder, "last_epoch.pth"))
 
         # validation
         if epoch % 75 == 0:
@@ -306,9 +337,15 @@ def train_net(
         if save_cp and epoch % 100 == 0:
             # save trying result in single folder each time
             logging.info('Created checkpoint directory')
-            torch.save(net.state_dict(),
-                      os.path.join(model_folder, f"CP_epoch{epoch + 1}.pth"))
-            logging.info(f'Checkpoint {epoch + 1} saved !')
+            torch.save({
+                        'epoch': epoch,
+                        'model_state_dict': net.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'lr_scheduler_state_dict': scheduler.state_dict(),
+                        'param': args
+                        },
+                      os.path.join(model_folder, f"CP_epoch{epoch}.pth"))
+            logging.info(f'Checkpoint {epoch} saved !')
 
 def tensor_to_img(t):
     return (t.cpu().numpy().squeeze().transpose(1,2,0) * 255).astype(np.uint8)
@@ -316,7 +353,7 @@ def tensor_to_img(t):
 def get_args():
     parser = argparse.ArgumentParser(description='ShadowMagic Ver 0.2',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=1000,
+    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=740,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-m', '--multi-gpu', action='store_true')
     parser.add_argument('-a', action='store_true', dest='anisotropic_penalty', 
@@ -351,12 +388,24 @@ if __name__ == '__main__':
     
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     args = get_args()
-    
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    name = args.name
+
+    # load parameters
+    if args.load:
+        model_load = args.load
+        ckpt = torch.load(args.load)
+        args = ckpt['param']
+    else:
+        ckpt = None
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f'Using device {device}')
 
-    net = UNet(in_channels=3, out_channels=1, bilinear=True, l1=args.l1, drop_out = args.do)
+    if ckpt is not None:
+        net.load_state_dict(ckpt['model_state_dict'])
+        logging.info(f'Model loaded from {model_load}')
+    else:
+        net = UNet(in_channels=3, out_channels=1, bilinear=True, l1=args.l1, drop_out = args.do)
     
     if args.multi_gpu:
         logging.info("using data parallel")
@@ -364,12 +413,6 @@ if __name__ == '__main__':
     else:
         net.to(device=device)
 
-    if args.load:
-        net.load_state_dict(
-            torch.load(args.load, map_location=device)
-        )
-        logging.info(f'Model loaded from {args.load}')
-    
     # faster convolutions, but more memory
     # cudnn.benchmark = True
 
@@ -402,16 +445,18 @@ if __name__ == '__main__':
     train_net(
                 img_path = args.imgs,
                 net = net,
+                device = device,
+                args = args,
                 epochs = args.epochs,
                 batch_size = args.batchsize,
                 lr = args.lr,
-                device = device,
                 crop_size = args.crop,
                 resize = args.resize,
                 l1_loss = args.l1,
-                name = args.name,
+                name = name,
                 drop_out = args.do,
                 ap = args.anisotropic_penalty,
-                aps = args.ap_size
+                aps = args.ap_size,
+                ckpt = ckpt
             )
 
