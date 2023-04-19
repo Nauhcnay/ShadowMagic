@@ -194,8 +194,9 @@ def train_net(
         epoch_loss = 0
         for imgs, lines, gts_list, flat_mask, shade_edge, label in pbar:
             gts, gts_d2x, gts_d4x, gts_d8x = gts_list
+            if args.line_only:
+                imgs = lines
             imgs = imgs.to(device=device, dtype=torch.float32)
-            lines = lines.to(device=device, dtype=torch.float32)
             gts = gts.to(device=device, dtype=torch.float32)
             gts_d2x = gts_d2x.to(device=device, dtype=torch.float32)
             gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
@@ -247,9 +248,12 @@ def train_net(
                     pred = torch.sigmoid(pred)
                     pred[~flat_mask.bool()] = 0
                     # pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
-                    # add advanced filter 
-                sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
-                            (pred > 0.5).repeat(1, 3, 1, 1)), dim = 0)
+                    # add advanced filter
+                if args.line_only:
+                    sample = torch.cat((imgs, gts, pred, pred > 0.5), dim = 0)
+                else:
+                    sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
+                                (pred > 0.5).repeat(1, 3, 1, 1)), dim = 0)
 
                 
                 if os.path.exists(result_folder) is False:
@@ -327,9 +331,14 @@ def train_net(
                     # save first 5 prdictions as result
                     if val_counter < 5:
                         val_img = tensor_to_img(denormalize(val_img))
-                        val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
-                        val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
-                        val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
+                        if args.line_only:
+                            val_pred_2 = tensor_to_img(val_pred > 0.5)
+                            val_pred = tensor_to_img(val_pred)
+                            val_gt = tensor_to_img(val_gt)
+                        else:
+                            val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
+                            val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
+                            val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
                         val_sample = np.concatenate((val_img, val_pred, val_pred_2, val_gt), axis = 1)
                         if val_counter == 0:
                             dims = (val_sample.shape[1], val_sample.shape[0])
@@ -402,6 +411,7 @@ def get_args():
     parser.add_argument('--l1', action="store_true", help='use L1 loss instead of BCE loss')
     parser.add_argument('-do', action="store_true", help='enable drop out')
     parser.add_argument('-sch', action="store_true", help='enable learning rate scheduler')
+    parser.add_argument('--line_only', action = 'store_true', help = 'input line drawing instead of line drawing + flat layer')
 
     return parser.parse_args()
 
@@ -429,7 +439,7 @@ if __name__ == '__main__':
         net.load_state_dict(ckpt['model_state_dict'])
         logging.info(f'Model loaded from {model_load}')
     else:
-        net = UNet(in_channels=3, out_channels=1, bilinear=True, l1=args.l1, drop_out = args.do)
+        net = UNet(in_channels= 1 if args.line_only else 3, out_channels=1, bilinear=True, l1=args.l1, drop_out = args.do)
     
     if args.multi_gpu:
         logging.info("using data parallel")

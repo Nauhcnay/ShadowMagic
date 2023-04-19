@@ -154,8 +154,8 @@ class BasicDataset(Dataset):
         shade_edge_np = shade_edge_np.clip(0, 255)
 
         # convert to tensor, and the following process should all be done by cuda
-        img = self.to_tensor(img_np / 255)
-        line = self.to_tensor(line_np.copy(), False)
+        img = self.to_tensor(img_np.copy() / 255)
+        line = self.to_tensor(line_np.copy() / 255)
         if self.l1_loss:
             shad = self.to_tensor(1 - shad_np / 255) # if we use l1 loss, let's treat the shading as image
         else:
@@ -165,7 +165,7 @@ class BasicDataset(Dataset):
             shad_d8x = self.to_tensor(1 - shad_np_d8x / 255, False)
         flat_mask = self.to_tensor(flat_mask_np / 255, False)
         shade_edge = self.to_tensor(shade_edge_np / 255, False)
-        line = line * shade_edge
+        # line = line * shade_edge
         label = torch.Tensor([label])
         assert line.shape == shad.shape
         # it returns tensor at last
