@@ -309,6 +309,8 @@ def train_net(
                 dims = None
                 for val_img, val_lines, val_gt_list, val_flat_mask, val_shade_edge, label in val_loader:
                     
+                    if args.line_only:
+                        val_img = val_lines
                     # predict
                     val_gt, _, _, _ = val_gt_list
                     val_img = val_img.to(device=device, dtype=torch.float32)
