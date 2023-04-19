@@ -8,6 +8,7 @@ from os import listdir
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms as T
+from scipy.ndimage.interpolation import rotate
 
 
 class BasicDataset(Dataset):
@@ -38,6 +39,7 @@ class BasicDataset(Dataset):
         self.to_dir_label = {"right": 0.25, "left":0.5, "back":0.75, "top":1.0}
         self.lable_flip = {0.25:0.5, 0.5:0.25}
         self.kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
+        self.jitter = T.ColorJitter(hue = (0, 0.5))
         logging.info(f'Creating dataset with {len(self.ids)} examples')
 
     def scan_imgs(self):
@@ -129,7 +131,7 @@ class BasicDataset(Dataset):
         img_np = cv2.resize(img_np, (w, h), interpolation = cv2.INTER_AREA)
         line_np = cv2.resize(line_np, (w, h), interpolation = cv2.INTER_AREA)
         shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_NEAREST)
-        flat_mask_np = cv2.resize(flat_mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
+        flat_mask_np = cv2.resize(255 - flat_mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
         shade_edge_np = cv2.resize(shade_edge_np, (w, h), interpolation = cv2.INTER_NEAREST)
 
         # we don't need image augmentation for val
@@ -140,6 +142,8 @@ class BasicDataset(Dataset):
             img_np, line_np, shad_np, flat_mask_np, shade_edge_np = img_list
             bbox = self.random_bbox(img_np)
             img_np, line_np, shad_np, flat_mask_np, shade_edge_np = self.crop([img_np, line_np, shad_np, flat_mask_np, shade_edge_np], bbox)
+            img_np = np.array(self.jitter(Image.fromarray(img_np.astype(np.uint8))))
+
 
         # clip values
         img_np = img_np.clip(0, 255)

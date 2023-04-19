@@ -215,7 +215,7 @@ def train_net(
                     wandb.log({'Anisotropic Penalty': loss_ap.item()}, step = global_step) 
 
             # record the image output 
-            if global_step % 750 == 0:
+            if global_step % 1050 == 0:
                 imgs = denormalize(imgs)
                 if l1_loss:
                     gts = denormalize(gts)
@@ -237,7 +237,7 @@ def train_net(
                     os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"),
                     nrow=int(imgs.shape[0]),
                     normalize=True,
-                    range=(0, 1),
+                    value_range=(0, 1),
                 )
                 
                 '''let's put the training result on the wandb '''
@@ -250,7 +250,7 @@ def train_net(
             global_step += 1
 
         # validation
-        if epoch % 50 == 0:
+        if epoch % 75 == 0:
             logging.info('Starting Validation')
             net.eval()
             val_bceloss = 0
