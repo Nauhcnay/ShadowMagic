@@ -8,7 +8,6 @@ from os import listdir
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms as T
-from scipy.ndimage.interpolation import rotate
 
 
 class BasicDataset(Dataset):
