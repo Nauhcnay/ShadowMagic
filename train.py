@@ -61,7 +61,45 @@ def anisotropic_penalty(pre, line, size = 3, k = 1):
     line_ap = torch.exp(-line_ap/k**2)
     loss = (pre_ap * line_ap).sum()
     return loss
+
+def focal_loss(pre, target, flat_mask, gamma = 5):
     
+    # compute loss map
+    bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
+    
+    # create the weight mask from the ground truth
+    mask = 1
+    mask_pos = (target == 1).float()
+    mask_neg = (target == 0).float()
+    weights_pos = mask_pos.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
+    weights_neg = mask_neg.sum(dim = (2, 3)).unsqueeze(-1).unsqueeze(-1)
+    
+    # let's assume the weight for negative samples are always 1, so the weight for positive samples will adaptively change
+    if (weights_pos == 0).all():
+        mask = mask * (mask_pos + mask_neg)    
+    else:
+        mask = mask * (mask_pos * (weights_neg / (weights_pos + 1)) + mask_neg)
+
+    if flat_mask is not None:
+        # we increase the weight inside the mask by 10 times, reduce the weight outside the mask by 0.1 times
+        mask_pos = flat_mask * 2
+        mask_neg = 1 - flat_mask
+        mask = mask * (mask_pos + mask_neg)
+
+
+    ## create the focal loss mask
+    pre_scores = torch.sigmoid(pre)
+    pre_t = pre_scores * target + (1 - pre_scores) * (1 - target)
+
+    if mask is not None:
+        ## reduce the weight for very confident prediction results
+        bce_loss = bce_loss * mask * ((1 - pre_t) ** gamma)
+    else:
+        bce_loss = bce_loss * ((1 - pre_t) ** gamma)
+
+    return bce_loss.mean()
+
+# seems this indexing based loss doesn't always work well
 def weighted_bce_loss(pre, target, flat_mask):
     # compute loss map
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
@@ -170,7 +208,7 @@ def train_net(
         criterion = nn.L1Loss()
     else:
         # let's use the focal loss instead of the BCE loss directly
-        criterion = weighted_bce_loss
+        criterion = focal_loss
     
     # start logging
     if args.log:
