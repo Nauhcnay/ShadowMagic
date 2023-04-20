@@ -212,7 +212,7 @@ def train_net(
     
     # start logging
     if args.log:
-        wandb.init(project = "ShadowMagic Ver 0.2", entity="waterheater", name = name)
+        wandb.init(project = "ShadowMagic Ver 0.1", entity="waterheater", name = name)
         wandb.config = {
           "learning_rate": lr,
           "epochs": epochs, 
@@ -231,14 +231,14 @@ def train_net(
         pbar = tqdm(train_loader)
         epoch_loss = 0
         for imgs, lines, gts_list, flat_mask, shade_edge, label in pbar:
-            gts, gts_d2x, gts_d4x, gts_d8x = gts_list
+            gts, _, _, _ = gts_list
             if args.line_only:
                 imgs = lines
             imgs = imgs.to(device=device, dtype=torch.float32)
             gts = gts.to(device=device, dtype=torch.float32)
-            gts_d2x = gts_d2x.to(device=device, dtype=torch.float32)
-            gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
-            gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
+            # gts_d2x = gts_d2x.to(device=device, dtype=torch.float32)
+            # gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
+            # gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
             flat_mask = flat_mask.to(device=device, dtype=torch.float32)
             shade_edge = shade_edge.to(device=device, dtype=torch.float32)
             label = label.to(device=device, dtype=torch.float32)
