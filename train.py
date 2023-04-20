@@ -341,7 +341,7 @@ def train_net(
                             val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
                             val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
                             val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
-                        val_sample = np.concatenate((val_img, val_pred, val_pred_2, val_gt), axis = 1)
+                        val_sample = np.concatenate((val_img, val_pred, val_pred_2, val_gt), axis = 1).squeeze()
                         if val_counter == 0:
                             dims = (val_sample.shape[1], val_sample.shape[0])
                         else:
