@@ -382,7 +382,7 @@ def train_net(
             logging.info(f'Checkpoint {epoch} saved !')
 
 def tensor_to_img(t):
-    return (t.cpu().numpy().transpose(1,2,0) * 255).astype(np.uint8)
+    return (t.squeeze(0).cpu().numpy().transpose(1,2,0) * 255).astype(np.uint8)
 
 def get_args():
     parser = argparse.ArgumentParser(description='ShadowMagic Ver 0.2',
