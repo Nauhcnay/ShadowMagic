@@ -114,6 +114,12 @@ def weighted_bce_loss(pre, target, flat_mask):
     mask_FP = torch.logical_and(pre_norm >= 0.5, mask_neg)
     # masks = [mask_outflat, mask_neg, mask_pos]
     masks = [mask_outflat, mask_neg, mask_pos, mask_FN, mask_FP]
+
+    # apply focal loss
+    pre_scores = torch.sigmoid(pre)
+    pre_t = pre_scores * target + (1 - pre_scores) * (1 - target)
+    bce_loss = bce_loss * ((1 - pre_t) ** 5)
+
     # compute final loss
     loss = 0
     avg = 0
@@ -208,11 +214,14 @@ def train_net(
         criterion = nn.L1Loss()
     else:
         # let's use the focal loss instead of the BCE loss directly
-        criterion = focal_loss
+        if args.base0:
+            criterion = focal_loss
+        else:
+            criterion = weighted_bce_loss
     
     # start logging
     if args.log:
-        wandb.init(project = "ShadowMagic Ver 0.1", entity="waterheater", name = name)
+        wandb.init(project = "ShadowMagic Ver 0.2", entity="waterheater", name = name)
         wandb.config = {
           "learning_rate": lr,
           "epochs": epochs, 
@@ -452,6 +461,7 @@ def get_args():
     parser.add_argument('-do', action="store_true", help='enable drop out')
     parser.add_argument('-sch', action="store_true", help='enable learning rate scheduler')
     parser.add_argument('--line_only', action = 'store_true', help = 'input line drawing instead of line drawing + flat layer')
+    parser.add_argument('--base0', action = 'store_true', help = 'switch to the previous focal loss function')
 
     return parser.parse_args()
 
