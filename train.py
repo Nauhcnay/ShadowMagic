@@ -62,7 +62,7 @@ def anisotropic_penalty(pre, line, size = 3, k = 1):
     loss = (pre_ap * line_ap).sum()
     return loss
 
-def focal_loss(pre, target, flat_mask, gamma = 5):
+def focal_loss(pre, target, flat_mask, gamma = 2):
     
     # compute loss map
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
@@ -86,16 +86,12 @@ def focal_loss(pre, target, flat_mask, gamma = 5):
         mask_neg = 1 - flat_mask
         mask = mask * (mask_pos + mask_neg)
 
-
     ## create the focal loss mask
     pre_scores = torch.sigmoid(pre)
     pre_t = pre_scores * target + (1 - pre_scores) * (1 - target)
-
-    if mask is not None:
-        ## reduce the weight for very confident prediction results
-        bce_loss = bce_loss * mask * ((1 - pre_t) ** gamma)
-    else:
-        bce_loss = bce_loss * ((1 - pre_t) ** gamma)
+    
+    ## reduce the weight for very confident prediction results
+    bce_loss = bce_loss * mask * ((1 - pre_t) ** gamma)
 
     return bce_loss.mean()
 
@@ -118,7 +114,7 @@ def weighted_bce_loss(pre, target, flat_mask):
     # apply focal loss
     pre_scores = torch.sigmoid(pre)
     pre_t = pre_scores * target + (1 - pre_scores) * (1 - target)
-    bce_loss = bce_loss * ((1 - pre_t) ** 5)
+    bce_loss = bce_loss * ((1 - pre_t) ** 2)
 
     # compute final loss
     loss = 0
