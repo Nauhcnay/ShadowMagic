@@ -194,12 +194,12 @@ def train_net(
         if args.sch:
             scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = epochs, last_epoch = start_epoch)
             scheduler.load_state_dict(ckpt['lr_scheduler_state_dict'])
-        model_folder = args.model_folder
-        result_folder = args.result_folder
+        # model_folder = args.model_folder
+        # result_folder = args.result_folder
     else:
         start_epoch = 0
-        args.model_folder = model_folder
-        args.result_folder = result_folder
+        # args.model_folder = model_folder
+        # args.result_folder = result_folder
         if args.sch:
             scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = epochs, last_epoch = -1)
     
@@ -227,9 +227,8 @@ def train_net(
         }
         # wandb.watch(net, log_freq=30)
 
-    
-
-    os.makedirs(model_folder)
+    if os.path.exists(model_folder) == False:
+        os.makedirs(model_folder)
 
     for epoch in range(start_epoch, start_epoch + epochs):
         # train
@@ -472,7 +471,7 @@ if __name__ == '__main__':
     # load parameters
     if args.load:
         model_load = args.load
-        ckpt = torch.load(args.load)
+        ckpt = torch.load(args.load, map_location='cuda:0')
         args = ckpt['param']
     else:
         ckpt = None
