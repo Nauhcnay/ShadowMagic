@@ -468,7 +468,6 @@ if __name__ == '__main__':
     
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     args = get_args()
-    name = args.name
 
     # load parameters
     if args.load:
@@ -481,11 +480,10 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f'Using device {device}')
 
+    net = UNet(in_channels= 1 if args.line_only else 3, out_channels=1, bilinear=True, l1=args.l1, drop_out = args.do)
     if ckpt is not None:
         net.load_state_dict(ckpt['model_state_dict'])
         logging.info(f'Model loaded from {model_load}')
-    else:
-        net = UNet(in_channels= 1 if args.line_only else 3, out_channels=1, bilinear=True, l1=args.l1, drop_out = args.do)
     
     if args.multi_gpu:
         logging.info("using data parallel")
@@ -533,7 +531,7 @@ if __name__ == '__main__':
                 crop_size = args.crop,
                 resize = args.resize,
                 l1_loss = args.l1,
-                name = name,
+                name = args.name,
                 drop_out = args.do,
                 ap = args.anisotropic_penalty,
                 aps = args.ap_size,
