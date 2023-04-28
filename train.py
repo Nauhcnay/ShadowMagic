@@ -387,8 +387,8 @@ def train_net(
                     label = label.to(device=device, dtype=torch.float32)
                     val_pred, _, _, _ = net(val_img, label)
                     if l1_loss:
-                        val_bceloss += criterion(val_pred, val_gt)
-                        val_gt = denormalize(val_gt)
+                        val_bceloss += criterion(val_pred, val_region)
+                        val_gt = denormalize(val_region)
                         val_pred = denormalize(val_pred)
                     else:
                         val_pred = torch.sigmoid(val_pred)
