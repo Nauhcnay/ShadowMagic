@@ -341,7 +341,7 @@ def train_net(
                 
             # update the global step
             global_step += 1
-            break
+            # break
 
         # save model for every epoch, but since now the dataset is really small, so we save checkpoint at every 5 epoches
         if epoch % 5 == 0:
