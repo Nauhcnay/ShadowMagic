@@ -16,11 +16,14 @@ from torch import optim
 from tqdm import tqdm
 from layers import UNet
 from utils.dataset import BasicDataset
+from utils.regions import get_regions
+from utils.preprocess import fillmap_to_color
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms as T
 from torch.nn import functional as F
 from torchvision import utils
 from PIL import Image
+
 
 # let's add anisotropic penalty
 def get_ij_kernel(i, j, size = 3):
@@ -234,7 +237,7 @@ def train_net(
         # train
         pbar = tqdm(train_loader)
         epoch_loss = 0
-        for imgs, lines, gts_list, flat_mask, shade_edge, label in pbar:
+        for imgs, lines, gts_list, flat_mask, shade_edge, region, label in pbar:
             gts, _, _, _ = gts_list
             if args.line_only:
                 imgs = lines
@@ -254,18 +257,18 @@ def train_net(
             # compute loss
             loss = 0
             if l1_loss:
-                pred = denormalize(pred)
-                loss = criterion(pred, gts)
+                loss_l1 = criterion(pred, region)
+                loss += loss_l1
             else:
                 loss_bce = criterion(pred, gts, flat_mask)
                 loss = loss + loss_bce
-            if ap:
+            if ap and l1_loss == False:
                 loss_ap = anisotropic_penalty(pred, shade_edge, size = aps)
                 loss = loss + 1e-6 * loss_ap
 
             # record loss
             epoch_loss += loss.item()   
-            pbar.set_description("Epoch:%d/%d, CE Loss:%.4f"%(epoch, start_epoch + epochs, loss.item()))
+            pbar.set_description("Epoch:%d/%d, Loss:%.4f"%(epoch, start_epoch + epochs, loss.item()))
 
             # back propagate
             loss.backward()
@@ -276,22 +279,34 @@ def train_net(
             
             # record the loss more frequently
             if global_step % 350 == 0 and args.log:
-                wandb.log({'Loss': loss_bce.item()}, step = global_step) 
-                if ap:
+                if l1_loss:
+                    wandb.log({'Loss': loss_l1.item()}, step = global_step) 
+                else:
+                    wandb.log({'Loss': loss_bce.item()}, step = global_step) 
+                if ap and l1_loss == False:
                     wandb.log({'Anisotropic Penalty': loss_ap.item()}, step = global_step) 
 
             # record the image output 
             if global_step % 1050 == 0:
                 imgs = denormalize(imgs)
                 if l1_loss:
-                    gts = denormalize(gts)
-                    pred = denormalize(pred)
+                    gts_ = (denormalize(gts) * 255).clamp(0, 255).cpu().numpy()
+                    pred_ = (denormalize(pred) * 255).clamp(0, 255).detach().cpu().numpy()
+                    gts_ = []
+                    pred_ = []
+                    for i in range(gts.shape[0]):
+                        gts_.append(fillmap_to_color(get_regions(gts[i])) / 255)
+                        pred_.append(fillmap_to_color(get_regions(pred[i])) / 255)
+                    gts_ = torch.Tensor(gts_)
+                    pred_ = torch.Tensor(pred_)
                 else:
                     pred = torch.sigmoid(pred)
                     pred[~flat_mask.bool()] = 0
                     # pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
                     # add advanced filter
-                if args.line_only:
+                if l1_loss:
+                    sample = torch.cat((imgs, gts_, pred_), dim = 0)
+                elif args.line_only:
                     sample = torch.cat((imgs, gts, pred, pred > 0.5), dim = 0)
                 else:
                     sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
@@ -349,7 +364,7 @@ def train_net(
                 val_counter = 0
                 val_figs = []
                 dims = None
-                for val_img, val_lines, val_gt_list, val_flat_mask, val_shade_edge, label in val_loader:
+                for val_img, val_lines, val_gt_list, val_flat_mask, val_shade_edge, val_region, label in val_loader:
                     
                     if args.line_only:
                         val_img = val_lines

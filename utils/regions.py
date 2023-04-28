@@ -1,12 +1,13 @@
 # convert each shadow image to region map
 import numpy as np
 import cv2, os
-from skimage.morphology import skeletonize, dilation
+from skimage.morphology import skeletonize, medial_axis
 from preprocess import flat_to_fillmap, fillmap_to_color, remove_stray_in_fill
 from thinning import thinning
 from misc import remove_alpha
 from PIL import Image
 from scipy.ndimage import label
+from skimage.feature import peak_local_max
 from multiprocessing import Pool
 
 def to_skeleton(edge):
@@ -14,8 +15,19 @@ def to_skeleton(edge):
     edge[-1, :] = 255
     edge[:, 0] = 255
     edge[:, -1] = 255
-    skeleton = 1.0 - dilation(edge.astype(np.float32) / 255.0)
-    skeleton = skeletonize(skeleton)
+    
+    dkernel = np.array([[0, 1, 0],[1, 1, 1],[0, 1, 0]]).astype(np.uint8)
+    temp = (255 - cv2.dilate(edge, dkernel, iterations = 1)) / 255
+    skeleton = skeletonize(temp, method = 'zhang')
+
+    '''
+    skeleton = 255 - edge
+    skeleton = cv2.distanceTransform(skeleton, cv2.DIST_L2, 3)
+    coords = peak_local_max(skeleton, min_distance = 0, threshold_abs = 20)
+    res = np.zeros(skeleton.shape)
+    res[tuple(coords.T)] = 255
+    '''
+
     skeleton = (skeleton * 255.0).clip(0, 255).astype(np.uint8)
     return skeleton
 
@@ -128,16 +140,16 @@ def get_regions(region_map):
     # return regions
     return water
 
-def multi_to_regions(img):
+def multi_to_regions(img, return_region_map):
     if os.path.exists(img.replace('flat', 'shadow_color')) and os.path.exists(img.replace('flat', 'regions')):
-        return None
+        return 0
     print('log:\topenning:%s'%img)
     flat = np.array(Image.open(img))
     shadow = np.array(Image.open(img.replace('flat', 'shadow')))
-    shadow_color, region_map = get_skeleton(shadow, flat)
+    shadow_color, region_map = get_skeleton(shadow, flat, return_region_map)
     Image.fromarray(shadow_color).save(img.replace('flat', 'shadow_color'))
     Image.fromarray(region_map).save(img.replace('flat', 'regions'))
-    return None
+    return 0
 
 if __name__ == '__main__':
     __spec__ = None
@@ -145,7 +157,9 @@ if __name__ == '__main__':
     multi_args = []
     for img in os.listdir(input_path):
         if 'flat' not in img: continue
-        multi_args.append((str(os.path.join(input_path, img)),))
-    with Pool(64) as pool:
+        # multi_to_regions(os.path.join(input_path, img, False))
+        multi_args.append((str(os.path.join(input_path, img)), False))
+
+    with Pool(8) as pool:
         pool.starmap(multi_to_regions, multi_args)
         
