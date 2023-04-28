@@ -284,7 +284,7 @@ def train_net(
             
             # record the loss more frequently
             if global_step % 350 == 0 and args.log:
-                if l1_loss:
+                if l1_loss or args.l2:
                     wandb.log({'Loss': loss_l1.item()}, step = global_step) 
                 else:
                     wandb.log({'Loss': loss_bce.item()}, step = global_step) 
