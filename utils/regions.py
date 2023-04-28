@@ -158,9 +158,9 @@ if __name__ == '__main__':
     multi_args = []
     for img in os.listdir(input_path):
         if 'flat' not in img: continue
-        multi_to_regions(os.path.join(input_path, img), False)
-        # multi_args.append((str(os.path.join(input_path, img)), False))
+        # multi_to_regions(os.path.join(input_path, img), False)
+        multi_args.append((str(os.path.join(input_path, img)), False))
 
-    # with Pool(8) as pool:
-    #     pool.starmap(multi_to_regions, multi_args)
+    with Pool(16) as pool:
+        pool.starmap(multi_to_regions, multi_args)
         
