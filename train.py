@@ -401,9 +401,9 @@ def train_net(
                         val_ap = anisotropic_penalty(val_pred, val_shade_edge, size = aps)
                     # save first 5 prdictions as result
                     if val_counter < 5:
-                        val_img = tensor_to_img(denormalize(val_img))
                         if args.line_only:
                             val_img = val_img.repeat((1, 3, 1, 1))
+                        val_img = tensor_to_img(denormalize(val_img))
                         if args.l1 or args.l2:
                             val_pred_r, color_val = fillmap_to_color(get_regions(tensor_to_img(val_pred)))
                             val_gt_r, _ = fillmap_to_color(get_regions(tensor_to_img(val_gt)), color_val)
