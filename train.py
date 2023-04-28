@@ -403,17 +403,17 @@ def train_net(
                     if val_counter < 5:
                         val_img = tensor_to_img(denormalize(val_img))
                         if args.line_only:
-                            val_img = val_img.repeat(1, 3, 1, 1)
+                            val_img = val_img.repeat((1, 3, 1, 1))
                         if args.l1 or args.l2:
                             val_pred_r, color_val = fillmap_to_color(get_regions(tensor_to_img(val_pred)))
                             val_gt_r, _ = fillmap_to_color(get_regions(tensor_to_img(val_gt)), color_val)
-                            val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
-                            val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
+                            val_pred = tensor_to_img(val_pred.repeat((1, 3, 1, 1)))
+                            val_gt = tensor_to_img(val_gt.repeat((1, 3, 1, 1)))
                             val_sample = np.concatenate((val_img, val_pred, val_gt, val_pred_r, val_gt_r), axis = 1).squeeze()
                         else:
-                            val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
-                            val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
-                            val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
+                            val_pred_2 = tensor_to_img((val_pred > 0.5).repeat((1, 3, 1, 1)))
+                            val_pred = tensor_to_img(val_pred.repeat((1, 3, 1, 1)))
+                            val_gt = tensor_to_img(val_gt.repeat((1, 3, 1, 1)))
                             val_sample = np.concatenate((val_img, val_pred, val_pred_2, val_gt), axis = 1).squeeze()
 
                         if val_counter == 0:
