@@ -8,7 +8,7 @@ from os import listdir
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms as T
-
+from utils.regions import to_edge, to_skeleton, to_region_map
 
 class BasicDataset(Dataset):
     
@@ -92,7 +92,7 @@ class BasicDataset(Dataset):
         line_path = self.ids[idx].strip("\n")
         flat_path = line_path.replace("line", "flat")
         shad_path = line_path.replace("line", "shadow")
-        region_path = line_path.replace("line", "regions")
+        shad_color_path = line_path.replace("line", "shadow_color")
 
         # get light label
         _, n = split(line_path)
@@ -106,12 +106,12 @@ class BasicDataset(Dataset):
             f'No flat found for the ID {idx}: {flat_path}'
         assert exists(shad_path), \
             f'No shadow found for the ID {idx}: {shad_path}'
-        assert exists(region_path), \
-            f'No shadow found for the ID {idx}: {region_path}'
+        assert exists(shad_color_path), \
+            f'No shadow found for the ID {idx}: {shad_color_path}'
         line_np = np.array(Image.open(line_path))
         flat_np = np.array(Image.open(flat_path))
         shad_np = np.array(Image.open(shad_path))
-        region_np = np.array(Image.open(region_path))
+        shad_color_np = np.array(Image.open(shad_color_path))
         
         # create training mask
         flat_mask_np = flat_np[:, :, 3]
@@ -125,37 +125,42 @@ class BasicDataset(Dataset):
         # we need an additional thershold for this
         _, shad_np = cv2.threshold(shad_np, 127, 255, cv2.THRESH_BINARY)
 
-        # create shadow edge mask
+        # # create shadow edge mask
         shade_edge_np = cv2.Canny(shad_np, 0, 20)
         shade_edge_np = 255 - cv2.dilate(shade_edge_np, self.kernel, iterations = 1)
+
         # resize image, now we still have to down sample the input a little bit for a easy training
         h, w = shad_np.shape
         h, w = self.resize_hw(h, w, random_resize = 0.3)
         img_np = cv2.resize(img_np, (w, h), interpolation = cv2.INTER_AREA)
         line_np = cv2.resize(line_np, (w, h), interpolation = cv2.INTER_AREA)
         shad_np = cv2.resize(shad_np, (w, h), interpolation = cv2.INTER_NEAREST)
-        region_np = cv2.resize(region_np, (w, h), interpolation = cv2.INTER_NEAREST)
         flat_mask_np = cv2.resize(flat_mask_np, (w, h), interpolation = cv2.INTER_NEAREST)
+        shad_color_np = cv2.resize(shad_color_np, (w, h), interpolation = cv2.INTER_NEAREST)
         shade_edge_np = cv2.resize(shade_edge_np, (w, h), interpolation = cv2.INTER_NEAREST)
 
         # we don't need image augmentation for val
         # if True:
         if self.val == False:
             # augment image, let's do this in numpy!
-            img_list, label = self.random_flip([img_np, line_np, shad_np, flat_mask_np, shade_edge_np, region_np], label)
-            img_np, line_np, shad_np, flat_mask_np, shade_edge_np, region_np = img_list
+            img_list, label = self.random_flip([img_np, line_np, shad_np, flat_mask_np, shade_edge_np, shad_color_np], label)
+            img_np, line_np, shad_np, flat_mask_np, shade_edge_np, shad_color_np = img_list
             bbox = self.random_bbox(img_np)
-            img_np, line_np, shad_np, flat_mask_np, shade_edge_np, region_np = self.crop([img_np, line_np, shad_np, flat_mask_np, shade_edge_np, region_np], bbox)
+            img_np, line_np, shad_np, flat_mask_np, shade_edge_np, shad_color_np = \
+                self.crop([img_np, line_np, shad_np, flat_mask_np, shade_edge_np, shad_color_np], bbox)
             img_np = np.array(self.jitter(Image.fromarray(img_np.astype(np.uint8))))
 
 
-        region_np = to_skeleton(to_edge(region_np))
+        edge_np = to_edge(shad_color_np)
+        skel_np = to_skeleton(edge_np)
+        region_np = to_region_map(edge_np, skel_np)
+        
         # clip values
         img_np = img_np.clip(0, 255)
         shad_np = shad_np.clip(0, 255)
-        shad_np_d2x = self.down_sample(shad_np)
-        shad_np_d4x = self.down_sample(shad_np_d2x)
-        shad_np_d8x = self.down_sample(shad_np_d4x)
+        # shad_np_d2x = self.down_sample(shad_np)
+        # shad_np_d4x = self.down_sample(shad_np_d2x)
+        # shad_np_d8x = self.down_sample(shad_np_d4x)
         flat_mask_np = flat_mask_np.clip(0, 255)
         shade_edge_np = shade_edge_np.clip(0, 255)
 
@@ -167,16 +172,17 @@ class BasicDataset(Dataset):
             shad = self.to_tensor(1 - shad_np / 255) # if we use l1 loss, let's treat the shading as image
         else:
             shad = self.to_tensor(1 - shad_np / 255, False)
-            shad_d2x = self.to_tensor(1 - shad_np_d2x / 255, False)
-            shad_d4x = self.to_tensor(1 - shad_np_d4x / 255, False)
-            shad_d8x = self.to_tensor(1 - shad_np_d8x / 255, False)
+            # shad_d2x = self.to_tensor(1 - shad_np_d2x / 255, False)
+            # shad_d4x = self.to_tensor(1 - shad_np_d4x / 255, False)
+            # shad_d8x = self.to_tensor(1 - shad_np_d8x / 255, False)
         flat_mask = self.to_tensor(flat_mask_np / 255, False)
         shade_edge = self.to_tensor(shade_edge_np / 255, False)
         # line = line * shade_edge
         label = torch.Tensor([label])
         assert line.shape == shad.shape
         # it returns tensor at last
-        return img, line, (shad, shad_d2x, shad_d4x, shad_d8x), flat_mask, shade_edge, region, label
+        # return img, line, (shad, shad_d2x, shad_d4x, shad_d8x), flat_mask, shade_edge, region, label
+        return img, line, shad, flat_mask, shade_edge, region, label
     
     def down_sample(self, img):
         dw = int(img.shape[1] / 2)

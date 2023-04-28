@@ -176,7 +176,7 @@ def train_net(
         Device:          {device.type}
         Crop size:       {crop_size}
         Drop Out:        {drop_out}
-        Loss:            {"L1" if l1_loss else "BCE"}
+        Loss:            {"L1 or L2" if (l1_loss or args.l2) else "BCE"}
     ''')
 
     now = datetime.now()
@@ -211,6 +211,8 @@ def train_net(
     # the task is in fact a binary classification problem
     if l1_loss:
         criterion = nn.L1Loss()
+    elif args.l2_loss:
+        criterion = nn.L2Loss()
     else:
         # let's use the focal loss instead of the BCE loss directly
         if args.base0:
@@ -237,8 +239,9 @@ def train_net(
         # train
         pbar = tqdm(train_loader)
         epoch_loss = 0
-        for imgs, lines, gts_list, flat_mask, shade_edge, region, label in pbar:
-            gts, _, _, _ = gts_list
+        # for imgs, lines, gt_list, flat_mask, shade_edge, region, label in pbar:
+        for imgs, lines, gts, flat_mask, shade_edge, region, label in pbar:
+            # gts, _, _, _ = gts_list
             if args.line_only:
                 imgs = lines
             imgs = imgs.to(device=device, dtype=torch.float32)
@@ -248,11 +251,13 @@ def train_net(
             # gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
             flat_mask = flat_mask.to(device=device, dtype=torch.float32)
             shade_edge = shade_edge.to(device=device, dtype=torch.float32)
+            region = region.to(device=device, dtype=torch.float32)
             label = label.to(device=device, dtype=torch.float32)
 
             # forward
             optimizer.zero_grad()
-            pred, pred_d2x, pred_d4x, pred_d8x = net(imgs, label)
+            # pred, pred_d2x, pred_d4x, pred_d8x = net(imgs, label)
+            pred, _, _, _ = net(imgs, label)
             
             # compute loss
             loss = 0
@@ -290,21 +295,23 @@ def train_net(
             if global_step % 1050 == 0:
                 imgs = denormalize(imgs)
                 if l1_loss:
-                    gts_ = (denormalize(gts) * 255).clamp(0, 255).cpu().numpy()
+                    gts_ = (denormalize(region) * 255).clamp(0, 255).cpu().numpy()
                     pred_ = (denormalize(pred) * 255).clamp(0, 255).detach().cpu().numpy()
-                    gts_ = []
-                    pred_ = []
+                    gts__ = []
+                    pred__ = []
                     for i in range(gts.shape[0]):
-                        gts_.append(fillmap_to_color(get_regions(gts[i])) / 255)
-                        pred_.append(fillmap_to_color(get_regions(pred[i])) / 255)
-                    gts_ = torch.Tensor(gts_)
-                    pred_ = torch.Tensor(pred_)
+                        shad_r_gt, color_map = fillmap_to_color(get_regions(gts_[i].squeeze()))
+                        shad_r_pre, _ = fillmap_to_color(get_regions(pred_[i].squeeze()), color_map)
+                        gts__.append((shad_r_gt / 255).transpose((2, 0, 1)))
+                        pred__.append((shad_r_pre / 255).transpose((2, 0, 1)))
+                    gts_ = torch.Tensor(np.stack(gts__, axis = 0)).to(imgs.device)
+                    pred_ = torch.Tensor(np.stack(pred__, axis = 0)).to(imgs.device)
                 else:
                     pred = torch.sigmoid(pred)
                     pred[~flat_mask.bool()] = 0
                     # pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
                     # add advanced filter
-                if l1_loss:
+                if l1_loss or args.l2_loss:
                     sample = torch.cat((imgs, gts_, pred_), dim = 0)
                 elif args.line_only:
                     sample = torch.cat((imgs, gts, pred, pred > 0.5), dim = 0)
@@ -332,6 +339,7 @@ def train_net(
                 
             # update the global step
             global_step += 1
+            # break
 
         # save model for every epoch, but since now the dataset is really small, so we save checkpoint at every 5 epoches
         if epoch % 5 == 0:
@@ -364,41 +372,48 @@ def train_net(
                 val_counter = 0
                 val_figs = []
                 dims = None
-                for val_img, val_lines, val_gt_list, val_flat_mask, val_shade_edge, val_region, label in val_loader:
+                for val_img, val_lines, val_gt, val_flat_mask, val_shade_edge, val_region, label in val_loader:
                     
                     if args.line_only:
                         val_img = val_lines
                     # predict
-                    val_gt, _, _, _ = val_gt_list
+                    # val_gt, _, _, _ = val_gt_list
                     val_img = val_img.to(device=device, dtype=torch.float32)
                     val_gt = val_gt.to(device=device, dtype=torch.float32)
                     val_lines = val_lines.to(device=device, dtype=torch.float32)
                     val_shade_edge = val_shade_edge.to(device=device, dtype=torch.float32)
                     val_flat_mask = val_flat_mask.to(device=device, dtype=torch.float32)
+                    val_region = val_region.to(device=device, dtype=torch.float32)
                     label = label.to(device=device, dtype=torch.float32)
                     val_pred, _, _, _ = net(val_img, label)
                     if l1_loss:
+                        val_bceloss += criterion(val_pred, val_gt)
                         val_gt = denormalize(val_gt)
                         val_pred = denormalize(val_pred)
                     else:
                         val_pred = torch.sigmoid(val_pred)
                         val_pred[~val_flat_mask.bool()] = 0
+                        val_bceloss += criterion(val_pred, val_gt, val_flat_mask)
                         # val_pred = T.functional.equalize((val_pred*255).to(torch.uint8)).to(torch.float32) / 255
-                    val_bceloss += criterion(val_pred, val_gt, val_flat_mask)
                     if ap:
                         val_ap = anisotropic_penalty(val_pred, val_shade_edge, size = aps)
                     # save first 5 prdictions as result
                     if val_counter < 5:
                         val_img = tensor_to_img(denormalize(val_img))
                         if args.line_only:
-                            val_pred_2 = tensor_to_img(val_pred > 0.5)
-                            val_pred = tensor_to_img(val_pred)
-                            val_gt = tensor_to_img(val_gt)
+                            val_img = val_img.repeat(1, 3, 1, 1)
+                        if args.l1_loss:
+                            val_pred_r, color_val = fillmap_to_color(get_regions(tensor_to_img(val_pred)))
+                            val_gt_r, _ = fillmap_to_color(get_regions(tensor_to_img(val_gt)), color_val)
+                            val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
+                            val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
+                            val_sample = np.concatenate((val_img, val_pred, val_gt, val_pred_r, val_gt_r), axis = 1).squeeze()
                         else:
                             val_pred_2 = tensor_to_img((val_pred > 0.5).repeat(1, 3, 1, 1))
                             val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
                             val_gt = tensor_to_img(val_gt.repeat(1, 3, 1, 1))
-                        val_sample = np.concatenate((val_img, val_pred, val_pred_2, val_gt), axis = 1).squeeze()
+                            val_sample = np.concatenate((val_img, val_pred, val_pred_2, val_gt), axis = 1).squeeze()
+
                         if val_counter == 0:
                             dims = (val_sample.shape[1], val_sample.shape[0])
                         else:
@@ -412,7 +427,7 @@ def train_net(
                     val_fig_res = wandb.Image(val_figs)
                     wandb.log({"Val Result":val_fig_res}, step = global_step)
                     wandb.log({'Val Loss': (val_bceloss / val_counter)}, step = global_step)
-                    if ap:
+                    if ap and args.l1_loss == False:
                         wandb.log({'Val Anisotropic Penalty': (val_ap / val_counter)}, step = global_step)
         # save model
         if save_cp and epoch % 100 == 0:
@@ -468,6 +483,7 @@ def get_args():
                         help='the path to training set', default = "./dataset")
     parser.add_argument('--log', action="store_true", help='enable wandb log')
     parser.add_argument('--l1', action="store_true", help='use L1 loss instead of BCE loss')
+    parser.add_argument('--l2', action="store_true", help='use L2 loss instead of BCE loss')
     parser.add_argument('-do', action="store_true", help='enable drop out')
     parser.add_argument('-sch', action="store_true", help='enable learning rate scheduler')
     parser.add_argument('--line_only', action = 'store_true', help = 'input line drawing instead of line drawing + flat layer')

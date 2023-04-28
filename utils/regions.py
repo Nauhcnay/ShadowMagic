@@ -2,9 +2,9 @@
 import numpy as np
 import cv2, os
 from skimage.morphology import skeletonize, medial_axis
-from preprocess import flat_to_fillmap, fillmap_to_color, remove_stray_in_fill
-from thinning import thinning
-from misc import remove_alpha
+from utils.preprocess import flat_to_fillmap, fillmap_to_color, remove_stray_in_fill
+from utils.thinning import thinning
+from utils.misc import remove_alpha
 from PIL import Image
 from scipy.ndimage import label
 from skimage.feature import peak_local_max

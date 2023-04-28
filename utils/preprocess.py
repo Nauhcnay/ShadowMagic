@@ -222,11 +222,10 @@ def shadow_to_fillmap(shadow):
 
 def fillmap_to_color(fill, color_map=None):
     if color_map is None:
-        color_map = np.random.randint(0, 255, (np.max(fill) + 1, 3), dtype=np.uint8)
-        color_map[0] = [255, 255, 255]
-        return color_map[fill]
-    else:
-        return color_map[fill]
+        color_map = np.random.randint(0, 255, (3000, 3), dtype=np.uint8)
+    r, c = np.unique(fill, return_counts = True)
+    color_map[r[np.argsort(c)[-1]]] = [255, 255, 255]
+    return color_map[fill], color_map
 
 def int_to_color(color):
     r = int(color//1e6)
