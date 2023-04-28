@@ -65,7 +65,7 @@ def anisotropic_penalty(pre, line, size = 3, k = 1):
     loss = (pre_ap * line_ap).sum()
     return loss
 
-def focal_loss(pre, target, flat_mask, gamma = 2):
+def focal_loss_bce(pre, target, flat_mask, gamma = 2):
     
     # compute loss map
     bce_loss = F.binary_cross_entropy_with_logits(pre, target, reduction = 'none')
@@ -211,12 +211,12 @@ def train_net(
     # the task is in fact a binary classification problem
     if l1_loss:
         criterion = nn.L1Loss()
-    elif args.l2_loss:
+    elif args.l2:
         criterion = nn.L2Loss()
     else:
         # let's use the focal loss instead of the BCE loss directly
         if args.base0:
-            criterion = focal_loss
+            criterion = focal_loss_bce
         else:
             criterion = weighted_bce_loss
     
@@ -313,7 +313,7 @@ def train_net(
                     pred[~flat_mask.bool()] = 0
                     # pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
                     # add advanced filter
-                if l1_loss or args.l2_loss:
+                if l1_loss or args.l2:
                     sample = torch.cat((imgs, gts_, pred_), dim = 0)
                 elif args.line_only:
                     sample = torch.cat((imgs, gts, pred, pred > 0.5), dim = 0)
@@ -341,7 +341,7 @@ def train_net(
                 
             # update the global step
             global_step += 1
-            # break
+            break
 
         # save model for every epoch, but since now the dataset is really small, so we save checkpoint at every 5 epoches
         if epoch % 5 == 0:
@@ -382,7 +382,7 @@ def train_net(
                     # val_gt, _, _, _ = val_gt_list
                     val_img = val_img.to(device=device, dtype=torch.float32)
                     val_gt = val_gt.to(device=device, dtype=torch.float32)
-                    val_lines = val_lines.to(device=device, dtype=torch.float32)
+                    # val_lines = val_lines.to(device=device, dtype=torch.float32)
                     val_shade_edge = val_shade_edge.to(device=device, dtype=torch.float32)
                     val_flat_mask = val_flat_mask.to(device=device, dtype=torch.float32)
                     val_region = val_region.to(device=device, dtype=torch.float32)
