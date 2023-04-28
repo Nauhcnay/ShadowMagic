@@ -295,7 +295,7 @@ def train_net(
             if global_step % 1050 == 0:
                 imgs = denormalize(imgs)
                 if args.line_only:
-                    imgs = imgs.repeat(1, 3, 1, 1)
+                    imgs = imgs.repeat((1, 3, 1, 1))
                 if l1_loss:
                     gts_ = (denormalize(region) * 255).clamp(0, 255).cpu().numpy()
                     pred_ = (denormalize(pred) * 255).clamp(0, 255).detach().cpu().numpy()
@@ -318,8 +318,8 @@ def train_net(
                 elif args.line_only:
                     sample = torch.cat((imgs, gts, pred, pred > 0.5), dim = 0)
                 else:
-                    sample = torch.cat((imgs, gts.repeat(1, 3, 1, 1), pred.repeat(1, 3, 1, 1), 
-                                (pred > 0.5).repeat(1, 3, 1, 1)), dim = 0)
+                    sample = torch.cat((imgs, gts.repeat((1, 3, 1, 1)), pred.repeat((1, 3, 1, 1)), 
+                                (pred > 0.5).repeat((1, 3, 1, 1))), dim = 0)
 
                 
                 if os.path.exists(result_folder) is False:
