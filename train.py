@@ -212,7 +212,7 @@ def train_net(
     if l1_loss:
         criterion = nn.L1Loss()
     elif args.l2:
-        criterion = nn.L2Loss()
+        criterion = nn.MSELoss()
     else:
         # let's use the focal loss instead of the BCE loss directly
         if args.base0:
