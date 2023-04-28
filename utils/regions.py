@@ -110,7 +110,7 @@ def get_skeleton(shadow, flat, return_region_map = True):
         skeleton = to_skeleton(edge)
         return shadow_color, to_region_map(edge, skeleton)
     else:
-        return shadow_color
+        return shadow_color, None
 
 def topo_compute_normal(dist):
     # gradient along x axis
@@ -148,7 +148,8 @@ def multi_to_regions(img, return_region_map):
     shadow = np.array(Image.open(img.replace('flat', 'shadow')))
     shadow_color, region_map = get_skeleton(shadow, flat, return_region_map)
     Image.fromarray(shadow_color).save(img.replace('flat', 'shadow_color'))
-    Image.fromarray(region_map).save(img.replace('flat', 'regions'))
+    if region_map is not None:
+        Image.fromarray(region_map).save(img.replace('flat', 'regions'))
     return 0
 
 if __name__ == '__main__':
@@ -157,9 +158,9 @@ if __name__ == '__main__':
     multi_args = []
     for img in os.listdir(input_path):
         if 'flat' not in img: continue
-        # multi_to_regions(os.path.join(input_path, img, False))
-        multi_args.append((str(os.path.join(input_path, img)), False))
+        multi_to_regions(os.path.join(input_path, img), False)
+        # multi_args.append((str(os.path.join(input_path, img)), False))
 
-    with Pool(8) as pool:
-        pool.starmap(multi_to_regions, multi_args)
+    # with Pool(8) as pool:
+    #     pool.starmap(multi_to_regions, multi_args)
         
