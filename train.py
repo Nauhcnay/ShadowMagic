@@ -261,7 +261,7 @@ def train_net(
             
             # compute loss
             loss = 0
-            if l1_loss:
+            if l1_loss or args.l2:
                 loss_l1 = criterion(pred, region)
                 loss += loss_l1
             else:
@@ -296,7 +296,7 @@ def train_net(
                 imgs = denormalize(imgs)
                 if args.line_only:
                     imgs = imgs.repeat((1, 3, 1, 1))
-                if l1_loss:
+                if l1_loss or args.l2:
                     gts_ = (denormalize(region) * 255).clamp(0, 255).cpu().numpy()
                     pred_ = (denormalize(pred) * 255).clamp(0, 255).detach().cpu().numpy()
                     gts__ = []
@@ -315,8 +315,8 @@ def train_net(
                     # add advanced filter
                 if l1_loss or args.l2:
                     sample = torch.cat((imgs, gts_, pred_), dim = 0)
-                elif args.line_only:
-                    sample = torch.cat((imgs, gts, pred, pred > 0.5), dim = 0)
+                # elif args.line_only:
+                #     sample = torch.cat((imgs, gts, pred, pred > 0.5), dim = 0)
                 else:
                     sample = torch.cat((imgs, gts.repeat((1, 3, 1, 1)), pred.repeat((1, 3, 1, 1)), 
                                 (pred > 0.5).repeat((1, 3, 1, 1))), dim = 0)
@@ -388,7 +388,7 @@ def train_net(
                     val_region = val_region.to(device=device, dtype=torch.float32)
                     label = label.to(device=device, dtype=torch.float32)
                     val_pred, _, _, _ = net(val_img, label)
-                    if l1_loss:
+                    if l1_loss or args.l2:
                         val_bceloss += criterion(val_pred, val_region)
                         val_gt = denormalize(val_region)
                         val_pred = denormalize(val_pred)
