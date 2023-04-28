@@ -339,7 +339,7 @@ def train_net(
                 
             # update the global step
             global_step += 1
-            # break
+            break
 
         # save model for every epoch, but since now the dataset is really small, so we save checkpoint at every 5 epoches
         if epoch % 5 == 0:
@@ -402,7 +402,7 @@ def train_net(
                         val_img = tensor_to_img(denormalize(val_img))
                         if args.line_only:
                             val_img = val_img.repeat(1, 3, 1, 1)
-                        if args.l1_loss:
+                        if args.l1 or args.l2:
                             val_pred_r, color_val = fillmap_to_color(get_regions(tensor_to_img(val_pred)))
                             val_gt_r, _ = fillmap_to_color(get_regions(tensor_to_img(val_gt)), color_val)
                             val_pred = tensor_to_img(val_pred.repeat(1, 3, 1, 1))
