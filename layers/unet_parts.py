@@ -4,6 +4,33 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# from ChatGPT
+class SpatialAttention(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.conv = nn.Conv2d(channels, 1, kernel_size=1)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+        
+    def forward(self, x):
+        attention = self.sigmoid(self.relu(self.conv(x)))
+        return x * attention + x
+
+class LayerAttention(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.conv = nn.Conv2d(channels, channels, kernel_size = 1)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_pool = self.avg_pool(x)
+        x_ = self.conv(avg_pool)
+        x_ = self.relu(x)
+        attention = self.sigmoid(x_)
+
+        return x * attention + x
 
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
@@ -47,12 +74,20 @@ class DoubleDilatedConv(nn.Module):
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.maxpool_conv = nn.Sequential(
-            nn.MaxPool2d(2),
-            DoubleConv(in_channels, out_channels)
-        )
+    def __init__(self, in_channels, out_channels, attention = False):
+        super().__init__() 
+        if attention:   
+            self.maxpool_conv = nn.Sequential(
+                nn.MaxPool2d(2),
+                DoubleConv(in_channels, out_channels),
+                LayerAttention(out_channels),
+                SpatialAttention(out_channels)
+            )
+        else:
+            self.maxpool_conv = nn.Sequential(
+                nn.MaxPool2d(2),
+                DoubleConv(in_channels, out_channels)
+            )
 
     def forward(self, x):
         return self.maxpool_conv(x)

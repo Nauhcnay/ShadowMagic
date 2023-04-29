@@ -177,6 +177,7 @@ def train_net(
         Crop size:       {crop_size}
         Drop Out:        {drop_out}
         Loss:            {"L1 or L2" if (l1_loss or args.l2) else "BCE"}
+        Attention:       {args.att}
     ''')
 
     now = datetime.now()
@@ -489,6 +490,7 @@ def get_args():
     parser.add_argument('--l1', action="store_true", help='use L1 loss instead of BCE loss')
     parser.add_argument('--l2', action="store_true", help='use L2 loss instead of BCE loss')
     parser.add_argument('-do', action="store_true", help='enable drop out')
+    parser.add_argument('--att', action="store_true", help='enable attention module')
     parser.add_argument('-sch', action="store_true", help='enable learning rate scheduler')
     parser.add_argument('--line_only', action = 'store_true', help = 'input line drawing instead of line drawing + flat layer')
     parser.add_argument('--base0', action = 'store_true', help = 'switch to the previous focal loss function')
@@ -514,7 +516,7 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f'Using device {device}')
 
-    net = UNet(in_channels= 1 if args.line_only else 3, out_channels=1, bilinear=True, l1=args.l1, drop_out = args.do)
+    net = UNet(in_channels= 1 if args.line_only else 3, out_channels=1, bilinear=True, l1=args.l1, drop_out = args.do, attention = args.att)
     if ckpt is not None:
         net.load_state_dict(ckpt['model_state_dict'])
         logging.info(f'Model loaded from {model_load}')

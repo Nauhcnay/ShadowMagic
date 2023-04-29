@@ -7,7 +7,7 @@ from .unet_parts import *
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels, out_channels, bilinear=True, l1 = False, drop_out = False):
+    def __init__(self, in_channels, out_channels, bilinear=True, l1 = False, drop_out = False, attention = False):
         super(UNet, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -17,9 +17,9 @@ class UNet(nn.Module):
         else:
             self.drop_out = None
         self.inc = DoubleConv(in_channels, 64)
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
+        self.down1 = Down(64, 128, attention)
+        self.down2 = Down(128, 256, attention)
+        self.down3 = Down(256, 512, attention)
         factor = 2 if bilinear else 1
         self.down4 = DownDilated(513, 1024 // factor)
         self.bottle1 = DoubleDilatedConv(512, 512)
