@@ -309,13 +309,15 @@ def train_net(
                         pred__.append((shad_r_pre / 255).transpose((2, 0, 1)))
                     gts_ = torch.Tensor(np.stack(gts__, axis = 0)).to(imgs.device)
                     pred_ = torch.Tensor(np.stack(pred__, axis = 0)).to(imgs.device)
+                    gts = denormalize(region).repeat((1,3,1,1))
+                    pred = denormalize(pred).repeat((1,3,1,1))
                 else:
                     pred = torch.sigmoid(pred)
                     pred[~flat_mask.bool()] = 0
                     # pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
                     # add advanced filter
                 if l1_loss or args.l2:
-                    sample = torch.cat((imgs, gts_, pred_), dim = 0)
+                    sample = torch.cat((imgs, gts, pred, gts_, pred_), dim = 0)
                 # elif args.line_only:
                 #     sample = torch.cat((imgs, gts, pred, pred > 0.5), dim = 0)
                 else:
