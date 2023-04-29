@@ -65,6 +65,19 @@ def anisotropic_penalty(pre, line, size = 3, k = 1):
     loss = (pre_ap * line_ap).sum()
     return loss
 
+def l1_loss_masked(pre, target):
+    loss_map = F.l1_loss(pre, target, reduction = 'none')
+    mask1 = target < 50 # this might not be helpful
+    mask2 = target >= 50
+    return (loss_map * mask1 + loss_map * mask2 * 0.1).mean()
+
+def l2_loss_masked(pre, target):
+    loss_map = F.l2_loss(pre, target, reduction = 'none')
+    mask1 = target < 50 # this might not be helpful
+    mask2 = target >= 50
+    return (loss_map * mask1 + loss_map * mask2 * 0.1).mean()
+
+
 def focal_loss_bce(pre, target, flat_mask, gamma = 2):
     
     # compute loss map
@@ -211,9 +224,9 @@ def train_net(
     # create the loss function
     # the task is in fact a binary classification problem
     if l1_loss:
-        criterion = nn.L1Loss()
+        criterion = l1_loss_masked
     elif args.l2:
-        criterion = nn.MSELoss()
+        criterion = l2_loss_masked
     else:
         # let's use the focal loss instead of the BCE loss directly
         if args.base0:
