@@ -391,7 +391,7 @@ def train_net(
             pass
         else:
             # save model for every epoch, but since now the dataset is really small, so we save checkpoint at every 5 epoches
-            if epoch % 5 == 0:
+            if epoch % 2 == 0:
                 if args.sch:
                     torch.save({
                         'epoch': epoch,
@@ -412,7 +412,7 @@ def train_net(
                       os.path.join(model_folder, "last_epoch.pth"))
 
             # validation
-            if epoch % 75 == 0:
+            if epoch % 2 == 0:
                 logging.info('Starting Validation')
                 net.eval()
                 val_bceloss = 0
