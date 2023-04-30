@@ -345,8 +345,8 @@ def train_net(
                         gts__ = []
                         pred__ = []
                         for i in range(gts.shape[0]):
-                            shad_r_gt, color_map = fillmap_to_color(get_regions(gts_[i].squeeze()))
-                            shad_r_pre, _ = fillmap_to_color(get_regions(pred_[i].squeeze()), color_map)
+                            shad_r_gt, _ = fillmap_to_color(get_regions(gts_[i].squeeze()))
+                            shad_r_pre, _ = fillmap_to_color(get_regions(pred_[i].squeeze()))
                             gts__.append((shad_r_gt / 255).transpose((2, 0, 1)))
                             pred__.append((shad_r_pre / 255).transpose((2, 0, 1)))
                         gts_ = torch.Tensor(np.stack(gts__, axis = 0)).to(imgs.device)
@@ -451,8 +451,8 @@ def train_net(
                                 val_img = val_img.repeat((1, 3, 1, 1))
                             val_img = tensor_to_img(denormalize(val_img))
                             if args.l1 or args.l2:
-                                val_pred_r, color_val = fillmap_to_color(get_regions(tensor_to_img(val_pred)))
-                                val_gt_r, _ = fillmap_to_color(get_regions(tensor_to_img(val_gt)), color_val)
+                                val_pred_r, _ = fillmap_to_color(get_regions(tensor_to_img(val_pred)))
+                                val_gt_r, _ = fillmap_to_color(get_regions(tensor_to_img(val_gt)))
                                 val_pred = tensor_to_img(val_pred.repeat((1, 3, 1, 1)))
                                 val_gt = tensor_to_img(val_gt.repeat((1, 3, 1, 1)))
                                 val_sample = np.concatenate((val_img, val_pred, val_gt, val_pred_r, val_gt_r), axis = 1).squeeze()
