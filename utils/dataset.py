@@ -32,8 +32,8 @@ class BasicDataset(Dataset):
             self.scan_imgs()
         else:
             with open(join(img_path, self.dpath), 'r') as f:
-                self.ids = f.readlines()
-        self.length = len(self.ids) * 500
+                self.ids = f.readlines() * 500
+        self.length = len(self.ids)
         # set dirction dict, mapping text to float number
         self.to_dir_label = {"right": 0.25, "left":0.5, "back":0.75, "top":1.0}
         self.lable_flip = {0.25:0.5, 0.5:0.25}
