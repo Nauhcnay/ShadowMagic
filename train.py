@@ -256,142 +256,136 @@ def train_net(
 
     for epoch in range(start_epoch, start_epoch + epochs):
         # train
-        pbar = tqdm(total = 1000)
+        pbar = tqdm(train_loader)
         epoch_loss = 0
         # for imgs, lines, gt_list, flat_mask, shade_edge, region, label in pbar:
-        data_iter_train = iter(train_loader)
-        for _ in range(1000):
-            try:
-                imgs, lines, gts, flat_mask, shade_edge, region, label = next(data_iter_train)
-                # gts, _, _, _ = gts_list
-                if args.line_only:
-                    imgs = lines
-                imgs = imgs.to(device=device, dtype=torch.float32)
-                gts = gts.to(device=device, dtype=torch.float32)
-                # gts_d2x = gts_d2x.to(device=device, dtype=torch.float32)
-                # gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
-                # gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
-                flat_mask = flat_mask.to(device=device, dtype=torch.float32)
-                shade_edge = shade_edge.to(device=device, dtype=torch.float32)
-                region = region.to(device=device, dtype=torch.float32)
-                label = label.to(device=device, dtype=torch.float32)
+        for imgs, lines, gts, flat_mask, shade_edge, region, label in pbar:
+            # gts, _, _, _ = gts_list
+            if args.line_only:
+                imgs = lines
+            imgs = imgs.to(device=device, dtype=torch.float32)
+            gts = gts.to(device=device, dtype=torch.float32)
+            # gts_d2x = gts_d2x.to(device=device, dtype=torch.float32)
+            # gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
+            # gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
+            flat_mask = flat_mask.to(device=device, dtype=torch.float32)
+            shade_edge = shade_edge.to(device=device, dtype=torch.float32)
+            region = region.to(device=device, dtype=torch.float32)
+            label = label.to(device=device, dtype=torch.float32)
 
-                # forward
-                # todo: add wgan branch
-                if args.wgan:
-                    optimizer_dis.zero_grad()
-                    optimizer_gen.zero_grad()
-                    # step discriminator first
-                    gen_fake_nograd = gen(imgs, label).detach()
-                    dis_real = dis(region, label)
-                    dis_fake = dis(gen_fake_nograd, label)
-                    loss_D = -torch.mean(dis_real) + torch.mean(dis_fake)
-                    loss_D.backward()
-                    optimizer_dis.step()
+            # forward
+            # todo: add wgan branch
+            if args.wgan:
+                optimizer_dis.zero_grad()
+                optimizer_gen.zero_grad()
+                # step discriminator first
+                gen_fake_nograd = gen(imgs, label).detach()
+                dis_real = dis(region, label)
+                dis_fake = dis(gen_fake_nograd, label)
+                loss_D = -torch.mean(dis_real) + torch.mean(dis_fake)
+                loss_D.backward()
+                optimizer_dis.step()
 
-                    # then step generator second, usually generator is stronger than discriminator
-                    # but I'm not sure if now there are any other better training strategy
-                    if global_step % 5 == 0:
-                        assert args.l1 or args.l2
-                        gen_fake = gen(imgs, label)
-                        recon_loss = criterion(fake, region)
-                        loss_G = -torch.mean(dis(gen_fake, label))
-                        loss_G_all = recon_loss + loss_G
-                        loss_G_all.backward()
-                        optimizer_gen.step()
+                # then step generator second, usually generator is stronger than discriminator
+                # but I'm not sure if now there are any other better training strategy
+                if global_step % 5 == 0:
+                    assert args.l1 or args.l2
+                    gen_fake = gen(imgs, label)
+                    recon_loss = criterion(fake, region)
+                    loss_G = -torch.mean(dis(gen_fake, label))
+                    loss_G_all = recon_loss + loss_G
+                    loss_G_all.backward()
+                    optimizer_gen.step()
 
+            else:
+                optimizer.zero_grad()
+                pred, _, _, _ = net(imgs, label)
+            
+                # compute loss
+                loss = 0
+                if l1_loss or args.l2:
+                    loss_l1 = criterion(pred, region)
+                    loss += loss_l1
                 else:
-                    optimizer.zero_grad()
-                    pred, _, _, _ = net(imgs, label)
+                    loss_bce = criterion(pred, gts, flat_mask)
+                    loss = loss + loss_bce
+                if ap and l1_loss == False:
+                    loss_ap = anisotropic_penalty(pred, shade_edge, size = aps)
+                    loss = loss + 1e-6 * loss_ap
+
+                # record loss
+                epoch_loss += loss.item()   
+                pbar.set_description("Epoch:%d/%d, Loss:%.4f"%(epoch, start_epoch + epochs, loss.item()))
+                # pbar.update(1)
+
+                # back propagate
+                loss.backward()
+                # nn.utils.clip_grad_value_(net.parameters(), 0.1)
+                optimizer.step()
+                if args.sch:
+                    scheduler.step()
                 
-                    # compute loss
-                    loss = 0
+                # record the loss more frequently
+                if global_step % 350 == 0 and args.log:
                     if l1_loss or args.l2:
-                        loss_l1 = criterion(pred, region)
-                        loss += loss_l1
+                        wandb.log({'Loss': loss_l1.item()}, step = global_step) 
                     else:
-                        loss_bce = criterion(pred, gts, flat_mask)
-                        loss = loss + loss_bce
-                    if ap and l1_loss == False:
-                        loss_ap = anisotropic_penalty(pred, shade_edge, size = aps)
-                        loss = loss + 1e-6 * loss_ap
+                        wandb.log({'Loss': loss_bce.item()}, step = global_step) 
+                    if ap and l1_loss == False and args.l2 == False:
+                        wandb.log({'Anisotropic Penalty': loss_ap.item()}, step = global_step) 
 
-                    # record loss
-                    epoch_loss += loss.item()   
-                    pbar.set_description("Epoch:%d/%d, Loss:%.4f"%(epoch, start_epoch + epochs, loss.item()))
-                    pbar.update(1)
+                # record the image output 
+                if global_step % 1050 == 0:
+                    imgs = denormalize(imgs)
+                    if args.line_only:
+                        imgs = imgs.repeat((1, 3, 1, 1))
+                    if l1_loss or args.l2:
+                        gts_ = (denormalize(region) * 255).clamp(0, 255).cpu().numpy()
+                        pred_ = (denormalize(pred) * 255).clamp(0, 255).detach().cpu().numpy()
+                        gts__ = []
+                        pred__ = []
+                        for i in range(gts.shape[0]):
+                            shad_r_gt, color_map = fillmap_to_color(get_regions(gts_[i].squeeze()))
+                            shad_r_pre, _ = fillmap_to_color(get_regions(pred_[i].squeeze()), color_map)
+                            gts__.append((shad_r_gt / 255).transpose((2, 0, 1)))
+                            pred__.append((shad_r_pre / 255).transpose((2, 0, 1)))
+                        gts_ = torch.Tensor(np.stack(gts__, axis = 0)).to(imgs.device)
+                        pred_ = torch.Tensor(np.stack(pred__, axis = 0)).to(imgs.device)
+                        gts = denormalize(region).repeat((1,3,1,1))
+                        pred = denormalize(pred).repeat((1,3,1,1))
+                    else:
+                        pred = torch.sigmoid(pred)
+                        pred[~flat_mask.bool()] = 0
+                        # pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
+                        # add advanced filter
+                    if l1_loss or args.l2:
+                        sample = torch.cat((imgs, gts, pred, gts_, pred_), dim = 0)
+                    # elif args.line_only:
+                    #     sample = torch.cat((imgs, gts, pred, pred > 0.5), dim = 0)
+                    else:
+                        sample = torch.cat((imgs, gts.repeat((1, 3, 1, 1)), pred.repeat((1, 3, 1, 1)), 
+                                    (pred > 0.5).repeat((1, 3, 1, 1))), dim = 0)
 
-                    # back propagate
-                    loss.backward()
-                    # nn.utils.clip_grad_value_(net.parameters(), 0.1)
-                    optimizer.step()
-                    if args.sch:
-                        scheduler.step()
                     
-                    # record the loss more frequently
-                    if global_step % 350 == 0 and args.log:
-                        if l1_loss or args.l2:
-                            wandb.log({'Loss': loss_l1.item()}, step = global_step) 
-                        else:
-                            wandb.log({'Loss': loss_bce.item()}, step = global_step) 
-                        if ap and l1_loss == False and args.l2 == False:
-                            wandb.log({'Anisotropic Penalty': loss_ap.item()}, step = global_step) 
-
-                    # record the image output 
-                    if global_step % 1050 == 0:
-                        imgs = denormalize(imgs)
-                        if args.line_only:
-                            imgs = imgs.repeat((1, 3, 1, 1))
-                        if l1_loss or args.l2:
-                            gts_ = (denormalize(region) * 255).clamp(0, 255).cpu().numpy()
-                            pred_ = (denormalize(pred) * 255).clamp(0, 255).detach().cpu().numpy()
-                            gts__ = []
-                            pred__ = []
-                            for i in range(gts.shape[0]):
-                                shad_r_gt, color_map = fillmap_to_color(get_regions(gts_[i].squeeze()))
-                                shad_r_pre, _ = fillmap_to_color(get_regions(pred_[i].squeeze()), color_map)
-                                gts__.append((shad_r_gt / 255).transpose((2, 0, 1)))
-                                pred__.append((shad_r_pre / 255).transpose((2, 0, 1)))
-                            gts_ = torch.Tensor(np.stack(gts__, axis = 0)).to(imgs.device)
-                            pred_ = torch.Tensor(np.stack(pred__, axis = 0)).to(imgs.device)
-                            gts = denormalize(region).repeat((1,3,1,1))
-                            pred = denormalize(pred).repeat((1,3,1,1))
-                        else:
-                            pred = torch.sigmoid(pred)
-                            pred[~flat_mask.bool()] = 0
-                            # pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
-                            # add advanced filter
-                        if l1_loss or args.l2:
-                            sample = torch.cat((imgs, gts, pred, gts_, pred_), dim = 0)
-                        # elif args.line_only:
-                        #     sample = torch.cat((imgs, gts, pred, pred > 0.5), dim = 0)
-                        else:
-                            sample = torch.cat((imgs, gts.repeat((1, 3, 1, 1)), pred.repeat((1, 3, 1, 1)), 
-                                        (pred > 0.5).repeat((1, 3, 1, 1))), dim = 0)
-
-                        
-                        if os.path.exists(result_folder) is False:
-                            logging.info("Creating %s"%str(result_folder))
-                            os.makedirs(result_folder)
-                        utils.save_image(
-                            sample,
-                            os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"),
-                            nrow=int(imgs.shape[0]),
-                            normalize=True,
-                            value_range=(0, 1),
-                        )
-                        
-                        '''let's put the training result on the wandb '''
-                        if args.log:
-                            fig_res = wandb.Image(np.array(
-                                Image.open(os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"))))
-                            wandb.log({'Train Result': fig_res}, step = global_step)
-                        
-                # update the global step
-                global_step += 1
-            except StopIteration:
-                data_iter_train = iter(train_loader)
-                imgs, lines, gts, flat_mask, shade_edge, region, label = next(data_iter_train)
+                    if os.path.exists(result_folder) is False:
+                        logging.info("Creating %s"%str(result_folder))
+                        os.makedirs(result_folder)
+                    utils.save_image(
+                        sample,
+                        os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"),
+                        nrow=int(imgs.shape[0]),
+                        normalize=True,
+                        value_range=(0, 1),
+                    )
+                    
+                    '''let's put the training result on the wandb '''
+                    if args.log:
+                        fig_res = wandb.Image(np.array(
+                            Image.open(os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"))))
+                        wandb.log({'Train Result': fig_res}, step = global_step)
+                    
+            # update the global step
+            global_step += 1
 
         if args.wgan:
             pass
