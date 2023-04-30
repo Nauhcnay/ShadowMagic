@@ -59,3 +59,65 @@ class UNet(nn.Module):
         x = self.up4(x, x1) # 512
         logits = self.outc(x)
         return logits, x_down_2x, x_down_4x, x_down_8x
+
+class Generator(nn.Module):
+    def __init__(self, in_channels, out_channels, drop_out = -1, attention = False):
+        super().__init__()
+        self.inc = ResBlock(in_channels, 64, drop_out = drop_out)
+        self.down1 = DownResNet(64, 128, attention, drop_out = drop_out)
+        self.down2 = DownResNet(128, 256, attention, drop_out = drop_out)
+        self.down3 = DownResNet(256, 512, attention, drop_out = drop_out)
+        self.down4 = DownResNet(513, 512, attention, drop_out = drop_out)
+        self.bottle1 = DilatedConvResNet(512, 512)
+        self.bottle2 = DilatedConvResNet(512, 512)
+        self.up1 = UpResNet(1024, 256)
+        self.up2 = UpResNet(512, 128)
+        self.up3 = UpResNet(256, 64)
+        self.up4 = UpResNet(128, 64)
+        self.outc = ResBlock(64, out_channels, kernel_size = 1)
+    
+    def forward(self, x, label):
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        b, c, h, w = x4
+        x4_cat = torch.cat((x4, label.unsqueeze(-1).unsqueeze(-1).expand(b, 1, h, w)), dim = 1)
+        x5 = self.down4(x4_cat)
+        x6 = self.bottle1(x5)
+        x7 = self.bottle2(x6)
+        x = self.up1(x7, x4)
+        x = self.up2(x, x3)
+        x = self.up2(x, x2)
+        x = self.up2(x, x1)
+        return self.outc(x)
+
+class Discriminator(nn.Module):
+    def __init__(self, in_channels = 2):
+        super().__init__()
+
+        def critic_block(in_filters, out_filters, normalization = True):
+            layers = [nn.Conv2d(in_filters, out_filters, kernel_size = 4, stride = 2, padding = 1)]
+            if normalization:
+                layers.append(nn.InstanceNorm2d(out_filters))
+            layers.append(nn.LeakyReLU(0.2, inplace = True))
+            return layers
+
+        self.model = nn.Sequential(
+            *critic_block(in_channels, 64, False),
+            *critic_block(64, 128),
+            *critic_block(128, 256),
+            *critic_block(256, 512),
+            nn.AdaptiveAvgPool2d(1),
+            nn.Flatten(),
+            nn.Linear(512, 1)
+            )
+    
+    def forward(self, img, label):
+        # expand label to the same size as input image
+        b, h, w = img.shape[0], img.shape[2], img.shape[3]
+        label = label.unsqueeze(-1).unsqueeze(-1).expand(b, 1, h, w)
+        # get input ready
+        img = torch.cat((img, label), dim = 1)
+        output = self.model(img)
+        return output
