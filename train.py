@@ -385,7 +385,7 @@ def train_net(
                     
                 # update the global step
                 global_step += 1
-                break
+                # break
 
             # save model for every epoch, but since now the dataset is really small, so we save checkpoint at every 5 epoches
             if epoch % 5 == 0:
@@ -419,7 +419,7 @@ def train_net(
                     val_figs = []
                     dims = None
                     for val_img, val_lines, val_gt, val_flat_mask, val_shade_edge, val_region, label in val_loader:
-                        break
+                        # break
                         if args.line_only:
                             val_img = val_lines
                         # predict
