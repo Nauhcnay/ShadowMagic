@@ -383,10 +383,12 @@ def train_net(
                             Image.open(os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"))))
                         wandb.log({'Train Result': fig_res}, step = global_step)
                     
-                # update the global step
-                global_step += 1
-                # break
+            # update the global step
+            global_step += 1
 
+        if args.wgan:
+            pass
+        else:
             # save model for every epoch, but since now the dataset is really small, so we save checkpoint at every 5 epoches
             if epoch % 5 == 0:
                 if args.sch:
@@ -419,7 +421,6 @@ def train_net(
                     val_figs = []
                     dims = None
                     for val_img, val_lines, val_gt, val_flat_mask, val_shade_edge, val_region, label in val_loader:
-                        # break
                         if args.line_only:
                             val_img = val_lines
                         # predict
