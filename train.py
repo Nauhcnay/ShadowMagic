@@ -391,6 +391,7 @@ def train_net(
                 global_step += 1
             except StopIteration:
                 data_iter_train = iter(train_loader)
+                imgs, lines, gts, flat_mask, shade_edge, region, label = next(data_iter_train)
 
         if args.wgan:
             pass
