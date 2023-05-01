@@ -179,6 +179,6 @@ if __name__ == '__main__':
         # multi_to_regions(os.path.join(input_path, img), False, True)
         multi_args.append((str(os.path.join(input_path, img)), False, True))
     
-    with Pool(16) as pool:
+    with Pool(32) as pool:
         pool.starmap(multi_to_regions, multi_args)
         
