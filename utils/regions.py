@@ -1,6 +1,12 @@
+
 # convert each shadow image to region map
 import numpy as np
-import cv2, os
+import cv2, os, sys
+from pathlib import Path as P
+directory = os.path.realpath(os.path.dirname(__file__))
+directory = str(P(directory).parent)
+if directory not in sys.path:
+    sys.path.append(directory)
 from skimage.morphology import skeletonize, medial_axis
 from utils.preprocess import flat_to_fillmap, fillmap_to_color, remove_stray_in_fill
 from utils.thinning import thinning
@@ -9,6 +15,7 @@ from PIL import Image
 from scipy.ndimage import label
 from skimage.feature import peak_local_max
 from multiprocessing import Pool
+
 
 def to_skeleton(edge):
     edge[0, :] = 255
@@ -66,45 +73,55 @@ def to_region_map(edge, skeleton):
     return height.clip(0, 255).astype(np.uint8)
 
 # code adpated from danbooRegion
-def get_skeleton(shadow, flat, return_region_map = True):
+def get_skeleton(shadow, flat, return_region_map = True, coarse_seg = False):
     # shadow map must has the same shape as the flatting map
     assert shadow.shape == flat.shape[:2]
     shadow = ~(shadow.astype(bool))
     dkernel = np.array([[0, 1, 0],[1, 1, 1],[0, 1, 0]]).astype(np.uint8)
 
-    # segment shadow map using flatting map
-    fillmap, _ = flat_to_fillmap(flat, False)
-    next_region = np.unique(fillmap).max() + 1
-    for r in np.unique(fillmap):
-        region = fillmap == r
-        _, rs = cv2.connectedComponents(region.astype(np.uint8), connectivity = 4)
-        if _ > 2:
-            # we skip region 0 because it is alwasy background
-            for i in range(1, _):
-                fillmap[rs == i] = next_region
-                next_region += 1
-    # if any region is completely surounded by one single region, merge it to its neighbour
-    for r in np.unique(fillmap):
-        rs = fillmap == r
-        broder = np.logical_xor(cv2.dilate(rs.astype(np.uint8), kernel = dkernel, iterations = 1).astype(bool), rs)
-        intersected_regions = np.unique(fillmap[broder])
-        if len(intersected_regions) == 1:
-            fillmap[rs] = intersected_regions[0]
-
-    # flat = fillmap_to_color(fillmap)
-    # refine shadow region
-    shadow_fillmap = shadow.astype(int).copy()
-    next_region = shadow_fillmap.max() + 1
-    for r in np.unique(fillmap):
-        if r == 0: continue
-        shadow_cut = np.logical_and(shadow, fillmap == r)
-        if (shadow_cut == True).any():
-            shadow_fillmap[shadow_cut] = next_region
+    if coarse_seg:
+        _, rs = cv2.connectedComponents(shadow.astype(np.uint8), connectivity = 4)
+        shadow_fillmap = shadow.astype(int).copy()
+        next_region = shadow_fillmap.max() + 1
+        for i in range(1, _):
+            shadow_fillmap[rs == i] = next_region
             next_region += 1
-    remove_stray_in_fill(shadow_fillmap)
-    shadow_fillmap = thinning(shadow_fillmap)
-    shadow_color = fillmap_to_color(shadow_fillmap)
+        shadow_color, _ = fillmap_to_color(shadow_fillmap)
+    else:
+        # segment shadow map using flatting map
+        fillmap, _ = flat_to_fillmap(flat, False)
+        next_region = np.unique(fillmap).max() + 1
+        for r in np.unique(fillmap):
+            region = fillmap == r
+            _, rs = cv2.connectedComponents(region.astype(np.uint8), connectivity = 4)
+            if _ > 2:
+                # we skip region 0 because it is alwasy background
+                for i in range(1, _):
+                    fillmap[rs == i] = next_region
+                    next_region += 1
     
+        # if any region is completely surounded by one single region, merge it to its neighbour
+        for r in np.unique(fillmap):
+            rs = fillmap == r
+            broder = np.logical_xor(cv2.dilate(rs.astype(np.uint8), kernel = dkernel, iterations = 1).astype(bool), rs)
+            intersected_regions = np.unique(fillmap[broder])
+            if len(intersected_regions) == 1:
+                fillmap[rs] = intersected_regions[0]
+
+        # flat = fillmap_to_color(fillmap)
+        # refine shadow region
+        shadow_fillmap = shadow.astype(int).copy()
+        next_region = shadow_fillmap.max() + 1
+        for r in np.unique(fillmap):
+            if r == 0: continue
+            shadow_cut = np.logical_and(shadow, fillmap == r)
+            if (shadow_cut == True).any():
+                shadow_fillmap[shadow_cut] = next_region
+                next_region += 1
+        remove_stray_in_fill(shadow_fillmap)
+        shadow_fillmap = thinning(shadow_fillmap)
+        shadow_color, _ = fillmap_to_color(shadow_fillmap)
+        
     if return_region_map:
         edge = to_edge(shadow_color)    
         skeleton = to_skeleton(edge)
@@ -140,13 +157,13 @@ def get_regions(region_map):
     # return regions
     return water
 
-def multi_to_regions(img, return_region_map):
+def multi_to_regions(img, return_region_map, coarse_seg = False):
     if os.path.exists(img.replace('flat', 'shadow_color')) and os.path.exists(img.replace('flat', 'regions')):
         return 0
     print('log:\topenning:%s'%img)
     flat = np.array(Image.open(img))
     shadow = np.array(Image.open(img.replace('flat', 'shadow')))
-    shadow_color, region_map = get_skeleton(shadow, flat, return_region_map)
+    shadow_color, region_map = get_skeleton(shadow, flat, return_region_map, coarse_seg)
     Image.fromarray(shadow_color).save(img.replace('flat', 'shadow_color'))
     if region_map is not None:
         Image.fromarray(region_map).save(img.replace('flat', 'regions'))
@@ -155,12 +172,13 @@ def multi_to_regions(img, return_region_map):
 if __name__ == '__main__':
     __spec__ = None
     input_path = "../dataset/img"
+    # input_path = "../experiments/05.regions"
     multi_args = []
     for img in os.listdir(input_path):
         if 'flat' not in img: continue
-        # multi_to_regions(os.path.join(input_path, img), False)
-        multi_args.append((str(os.path.join(input_path, img)), False))
-
+        # multi_to_regions(os.path.join(input_path, img), False, True)
+        multi_args.append((str(os.path.join(input_path, img)), False, True))
+    
     with Pool(16) as pool:
         pool.starmap(multi_to_regions, multi_args)
         
