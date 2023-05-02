@@ -391,25 +391,24 @@ def train_net(
             pass
         else:
             # save model for every epoch, but since now the dataset is really small, so we save checkpoint at every 5 epoches
-            if epoch % 2 == 0:
-                if args.sch:
-                    torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': net.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'lr_scheduler_state_dict': scheduler.state_dict(),
-                        'param': args
-                        },
-                      os.path.join(model_folder, "last_epoch.pth"))
-                else:
-                    torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': net.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'lr_scheduler_state_dict': None,
-                        'param': args
-                        },
-                      os.path.join(model_folder, "last_epoch.pth"))
+            if args.sch:
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': net.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'lr_scheduler_state_dict': scheduler.state_dict(),
+                    'param': args
+                    },
+                  os.path.join(model_folder, "last_epoch.pth"))
+            else:
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': net.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'lr_scheduler_state_dict': None,
+                    'param': args
+                    },
+                  os.path.join(model_folder, "last_epoch.pth"))
 
             # validation
             if epoch % 2 == 0:
@@ -478,7 +477,7 @@ def train_net(
                         if ap and args.l1 == False and args.l2 == False:
                             wandb.log({'Val Anisotropic Penalty': (val_ap / val_counter)}, step = global_step)
             # save model
-            if save_cp and epoch % 100 == 0:
+            if save_cp and epoch % 2 == 0:
                 # save trying result in single folder each time
                 logging.info('Created checkpoint directory')
                 if args.sch:
