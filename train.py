@@ -72,7 +72,7 @@ def l1_loss_masked(pre, target):
     return (loss_map * mask1 + loss_map * mask2 * 0.1).mean()
 
 def l2_loss_masked(pre, target):
-    loss_map = F.l2_loss(pre, target, reduction = 'none')
+    loss_map = F.mse_loss(pre, target, reduction = 'none')
     mask1 = target < 50 # this might not be helpful
     mask2 = target >= 50
     return (loss_map * mask1 + loss_map * mask2 * 0.1).mean()
@@ -291,11 +291,56 @@ def train_net(
                 if global_step % 5 == 0:
                     assert args.l1 or args.l2
                     gen_fake = gen(imgs, label)
-                    recon_loss = criterion(fake, region)
+                    recon_loss = criterion(gen_fake, region)
                     loss_G = -torch.mean(dis(gen_fake, label))
                     loss_G_all = recon_loss + loss_G
                     loss_G_all.backward()
                     optimizer_gen.step()
+                    pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f"%(epoch, 
+                        start_epoch + epochs, loss_G.item(), loss_D.item(), recon_loss.item()))
+                
+                # record to wandb
+                if global_step % 350 == 0 and args.log:
+                    wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
+                    wandb.log({'DLoss:': loss_D.item()}, step = global_step) 
+                    wandb.log({'Reconstruction Loss:': recon_loss.item()}, step = global_step) 
+                
+                if global_step % 1050 == 0:
+                    imgs = denormalize(imgs)
+                    if args.line_only:
+                        imgs = imgs.repeat((1, 3, 1, 1))
+                    
+                    gts_ = (denormalize(region) * 255).clamp(0, 255).cpu().numpy()
+                    pred_ = (denormalize(gen_fake_nograd) * 255).clamp(0, 255).detach().cpu().numpy()
+                    gts__ = []
+                    pred__ = []
+                    for i in range(gts.shape[0]):
+                        shad_r_gt, _ = fillmap_to_color(get_regions(gts_[i].squeeze()))
+                        shad_r_pre, _ = fillmap_to_color(get_regions(pred_[i].squeeze()))
+                        gts__.append((shad_r_gt / 255).transpose((2, 0, 1)))
+                        pred__.append((shad_r_pre / 255).transpose((2, 0, 1)))
+                    gts_ = torch.Tensor(np.stack(gts__, axis = 0)).to(imgs.device)
+                    pred_ = torch.Tensor(np.stack(pred__, axis = 0)).to(imgs.device)
+                    gts = denormalize(region).repeat((1,3,1,1))
+                    pred = denormalize(gen_fake_nograd).repeat((1,3,1,1))
+                    sample = torch.cat((imgs, gts, pred, gts_, pred_), dim = 0)
+                    
+                    if os.path.exists(result_folder) is False:
+                        logging.info("Creating %s"%str(result_folder))
+                        os.makedirs(result_folder)
+                    utils.save_image(
+                        sample,
+                        os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"),
+                        nrow=int(imgs.shape[0]),
+                        normalize=True,
+                        value_range=(0, 1),
+                    )
+                    
+                    '''let's put the training result on the wandb '''
+                    if args.log:
+                        fig_res = wandb.Image(np.array(
+                            Image.open(os.path.join(result_folder, f"{str(global_step).zfill(6)}.png"))))
+                        wandb.log({'Train Result': fig_res}, step = global_step)
 
             else:
                 optimizer.zero_grad()
@@ -388,7 +433,15 @@ def train_net(
             global_step += 1
 
         if args.wgan:
-            pass
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict_d': dis.state_dict(),
+                'model_state_dict_g': gen.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'lr_scheduler_state_dict': None,
+                'param': args
+                },
+              os.path.join(model_folder, "last_epoch.pth"))
         else:
             # save model for every epoch, but since now the dataset is really small, so we save checkpoint at every 5 epoches
             if args.sch:
@@ -410,94 +463,114 @@ def train_net(
                     },
                   os.path.join(model_folder, "last_epoch.pth"))
 
-            # validation
-            if epoch % 2 == 0:
-                logging.info('Starting Validation')
-                net.eval()
-                val_bceloss = 0
-                val_ap = 0
-                with torch.no_grad():
-                    val_counter = 0
-                    val_figs = []
-                    dims = None
-                    for val_img, val_lines, val_gt, val_flat_mask, val_shade_edge, val_region, label in val_loader:
-                        if args.line_only:
-                            val_img = val_lines
-                        # predict
-                        # val_gt, _, _, _ = val_gt_list
-                        val_img = val_img.to(device=device, dtype=torch.float32)
-                        val_gt = val_gt.to(device=device, dtype=torch.float32)
-                        # val_lines = val_lines.to(device=device, dtype=torch.float32)
-                        val_shade_edge = val_shade_edge.to(device=device, dtype=torch.float32)
-                        val_flat_mask = val_flat_mask.to(device=device, dtype=torch.float32)
-                        val_region = val_region.to(device=device, dtype=torch.float32)
-                        label = label.to(device=device, dtype=torch.float32)
-                        val_pred, _, _, _ = net(val_img, label)
-                        if l1_loss or args.l2:
-                            val_bceloss += criterion(val_pred, val_region)
-                            val_gt = denormalize(val_region)
-                            val_pred = denormalize(val_pred)
-                        else:
-                            val_pred = torch.sigmoid(val_pred)
-                            val_pred[~val_flat_mask.bool()] = 0
-                            val_bceloss += criterion(val_pred, val_gt, val_flat_mask)
-                            # val_pred = T.functional.equalize((val_pred*255).to(torch.uint8)).to(torch.float32) / 255
-                        if ap:
-                            val_ap = anisotropic_penalty(val_pred, val_shade_edge, size = aps)
-                        # save first 5 prdictions as result
-                        if val_counter < 5:
-                            if args.line_only:
-                                val_img = val_img.repeat((1, 3, 1, 1))
-                            val_img = tensor_to_img(denormalize(val_img))
-                            if args.l1 or args.l2:
-                                val_pred_r, _ = fillmap_to_color(get_regions(tensor_to_img(val_pred)))
-                                val_gt_r, _ = fillmap_to_color(get_regions(tensor_to_img(val_gt)))
-                                val_pred = tensor_to_img(val_pred.repeat((1, 3, 1, 1)))
-                                val_gt = tensor_to_img(val_gt.repeat((1, 3, 1, 1)))
-                                val_sample = np.concatenate((val_img, val_pred, val_gt, val_pred_r, val_gt_r), axis = 1).squeeze()
-                            else:
-                                val_pred_2 = tensor_to_img((val_pred > 0.5).repeat((1, 3, 1, 1)))
-                                val_pred = tensor_to_img(val_pred.repeat((1, 3, 1, 1)))
-                                val_gt = tensor_to_img(val_gt.repeat((1, 3, 1, 1)))
-                                val_sample = np.concatenate((val_img, val_pred, val_pred_2, val_gt), axis = 1).squeeze()
+        # validation
+        if epoch % 2 == 0:
+            logging.info('Starting Validation')
+            if args.wgan:
+                net = gen
+            net.eval()
+            val_bceloss = 0
+            val_ap = 0
+            with torch.no_grad():
+                val_counter = 0
+                val_figs = []
+                dims = None
+                for val_img, val_lines, val_gt, val_flat_mask, val_shade_edge, val_region, label in val_loader:
+                    if args.line_only:
+                        val_img = val_lines
+                    # predict
+                    # val_gt, _, _, _ = val_gt_list
+                    val_img = val_img.to(device=device, dtype=torch.float32)
+                    val_gt = val_gt.to(device=device, dtype=torch.float32)
+                    # val_lines = val_lines.to(device=device, dtype=torch.float32)
+                    val_shade_edge = val_shade_edge.to(device=device, dtype=torch.float32)
+                    val_flat_mask = val_flat_mask.to(device=device, dtype=torch.float32)
+                    val_region = val_region.to(device=device, dtype=torch.float32)
+                    label = label.to(device=device, dtype=torch.float32)
+                    val_out = net(val_img, label)
+                    
+                    if type(val_out) is list:
+                        val_pred, _, _, _  = val_out
+                    else:
+                        val_pred = val_out
 
-                            if val_counter == 0:
-                                dims = (val_sample.shape[1], val_sample.shape[0])
-                            else:
-                                assert dims is not None
-                                val_sample = cv2.resize(val_sample, dims, interpolation = cv2.INTER_AREA)
-                            val_counter += 1
-                            val_figs.append(val_sample)
-                    val_figs = np.concatenate(val_figs, axis = 0)
-                    Image.fromarray(val_figs).save(os.path.join(result_folder, "%06d_val.png"%global_step))
-                    if args.log:
-                        val_fig_res = wandb.Image(val_figs)
-                        wandb.log({"Val Result":val_fig_res}, step = global_step)
-                        wandb.log({'Val Loss': (val_bceloss / val_counter)}, step = global_step)
-                        if ap and args.l1 == False and args.l2 == False:
-                            wandb.log({'Val Anisotropic Penalty': (val_ap / val_counter)}, step = global_step)
+                    if l1_loss or args.l2:
+                        val_bceloss += criterion(val_pred, val_region)
+                        val_gt = denormalize(val_region)
+                        val_pred = denormalize(val_pred)
+                    else:
+                        val_pred = torch.sigmoid(val_pred)
+                        val_pred[~val_flat_mask.bool()] = 0
+                        val_bceloss += criterion(val_pred, val_gt, val_flat_mask)
+                        # val_pred = T.functional.equalize((val_pred*255).to(torch.uint8)).to(torch.float32) / 255
+                    if ap:
+                        val_ap = anisotropic_penalty(val_pred, val_shade_edge, size = aps)
+                    # save first 5 prdictions as result
+                    if val_counter < 5:
+                        if args.line_only:
+                            val_img = val_img.repeat((1, 3, 1, 1))
+                        val_img = tensor_to_img(denormalize(val_img))
+                        if args.l1 or args.l2:
+                            val_pred_r, _ = fillmap_to_color(get_regions(tensor_to_img(val_pred)))
+                            val_gt_r, _ = fillmap_to_color(get_regions(tensor_to_img(val_gt)))
+                            val_pred = tensor_to_img(val_pred.repeat((1, 3, 1, 1)))
+                            val_gt = tensor_to_img(val_gt.repeat((1, 3, 1, 1)))
+                            val_sample = np.concatenate((val_img, val_pred, val_gt, val_pred_r, val_gt_r), axis = 1).squeeze()
+                        else:
+                            val_pred_2 = tensor_to_img((val_pred > 0.5).repeat((1, 3, 1, 1)))
+                            val_pred = tensor_to_img(val_pred.repeat((1, 3, 1, 1)))
+                            val_gt = tensor_to_img(val_gt.repeat((1, 3, 1, 1)))
+                            val_sample = np.concatenate((val_img, val_pred, val_pred_2, val_gt), axis = 1).squeeze()
+
+                        if val_counter == 0:
+                            dims = (val_sample.shape[1], val_sample.shape[0])
+                        else:
+                            assert dims is not None
+                            val_sample = cv2.resize(val_sample, dims, interpolation = cv2.INTER_AREA)
+                        val_counter += 1
+                        val_figs.append(val_sample)
+                val_figs = np.concatenate(val_figs, axis = 0)
+                Image.fromarray(val_figs).save(os.path.join(result_folder, "%06d_val.png"%global_step))
+                if args.log:
+                    val_fig_res = wandb.Image(val_figs)
+                    wandb.log({"Val Result":val_fig_res}, step = global_step)
+                    wandb.log({'Val Loss': (val_bceloss / val_counter)}, step = global_step)
+                    if ap and args.l1 == False and args.l2 == False:
+                        wandb.log({'Val Anisotropic Penalty': (val_ap / val_counter)}, step = global_step)
+            
             # save model
             if save_cp and epoch % 2 == 0:
                 # save trying result in single folder each time
                 logging.info('Created checkpoint directory')
-                if args.sch:
+                if args.wgan:
                     torch.save({
-                                'epoch': epoch,
-                                'model_state_dict': net.state_dict(),
-                                'optimizer_state_dict': optimizer.state_dict(),
-                                'lr_scheduler_state_dict': scheduler.state_dict(),
-                                'param': args
-                                },
-                              os.path.join(model_folder, f"CP_epoch{epoch}.pth"))
+                        'epoch': epoch,
+                        'model_state_dict_d': dis.state_dict(),
+                        'model_state_dict_g': gen.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'lr_scheduler_state_dict': None,
+                        'param': args
+                        },
+                    os.path.join(model_folder, f"CP_epoch{epoch}.pth"))
                 else:
-                    torch.save({
-                                'epoch': epoch,
-                                'model_state_dict': net.state_dict(),
-                                'optimizer_state_dict': optimizer.state_dict(),
-                                'lr_scheduler_state_dict': None,
-                                'param': args
-                                },
-                              os.path.join(model_folder, f"CP_epoch{epoch}.pth"))
+                    if args.sch:
+                        torch.save({
+                                    'epoch': epoch,
+                                    'model_state_dict': net.state_dict(),
+                                    'optimizer_state_dict': optimizer.state_dict(),
+                                    'lr_scheduler_state_dict': scheduler.state_dict(),
+                                    'param': args
+                                    },
+                                  os.path.join(model_folder, f"CP_epoch{epoch}.pth"))
+                    else:
+                        torch.save({
+                                    'epoch': epoch,
+                                    'model_state_dict': net.state_dict(),
+                                    'optimizer_state_dict': optimizer.state_dict(),
+                                    'lr_scheduler_state_dict': None,
+                                    'param': args
+                                    },
+                                  os.path.join(model_folder, f"CP_epoch{epoch}.pth"))
                 logging.info(f'Checkpoint {epoch} saved !')
 
 def tensor_to_img(t):
@@ -563,7 +636,7 @@ if __name__ == '__main__':
 
     if args.wgan:
         gen = Generator(in_channels= 1 if args.line_only else 3, out_channels=1, drop_out = args.do, attention = args.att)
-        dis = Discriminator(in_channels = 2 if arg.line_only else 4)
+        dis = Discriminator(in_channels = 2)
     else:
         net = UNet(in_channels= 1 if args.line_only else 3, out_channels=1, bilinear=True, l1=args.l1, drop_out = args.do, attention = args.att)
     

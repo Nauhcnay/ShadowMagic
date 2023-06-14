@@ -81,15 +81,15 @@ class Generator(nn.Module):
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
-        b, c, h, w = x4
+        b, c, h, w = x4.shape
         x4_cat = torch.cat((x4, label.unsqueeze(-1).unsqueeze(-1).expand(b, 1, h, w)), dim = 1)
         x5 = self.down4(x4_cat)
         x6 = self.bottle1(x5)
         x7 = self.bottle2(x6)
         x = self.up1(x7, x4)
         x = self.up2(x, x3)
-        x = self.up2(x, x2)
-        x = self.up2(x, x1)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
         return self.outc(x)
 
 class Discriminator(nn.Module):

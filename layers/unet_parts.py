@@ -182,7 +182,7 @@ class ResBlock(nn.Module):
 
 class DownResNet(nn.Module):
     def __init__(self, in_channels, out_channels, attn = False, drop_out = -1):
-        super().__init__
+        super().__init__()
         if attn:
             self.layers = nn.Sequential(
                 nn.MaxPool2d(2),
@@ -217,8 +217,8 @@ class DilatedConvResNet(nn.Module):
         if not mid_channels:
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
-            ResBlock(in_channels, mid_channels, kernel_size=3, padding="same", dilation=2),
-            ResBlock(mid_channels, out_channels, kernel_size=3, padding="same", dilation=2)
+            ResBlock(in_channels, mid_channels, kernel_size=3, dilation=2),
+            ResBlock(mid_channels, out_channels, kernel_size=3, dilation=2)
         )
 
     def forward(self, x):
