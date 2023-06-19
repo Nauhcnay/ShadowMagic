@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 
 # let's add the wandb
-import wandb
+
 from datetime import datetime
 
 from torch import optim
@@ -187,6 +187,8 @@ def train_net(
               ckpt = None):
     
     LAMBDA_GP = 10
+    if args.log:
+        import wandb
 
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss or args.l2)
@@ -317,7 +319,7 @@ def train_net(
                     gen_fake = gen(imgs, label)
                     recon_loss = criterion(gen_fake, region)
                     loss_G = -torch.mean(dis(gen_fake, label))
-                    loss_G_all = recon_loss + loss_G
+                    loss_G_all = recon_loss + loss_G * 0.001
                     optimizer_gen.zero_grad()
                     loss_G_all.backward()
                     optimizer_gen.step()
