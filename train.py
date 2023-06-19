@@ -146,6 +146,27 @@ def denormalize(img):
     # denormalize
     return (img / 2 + 0.5).clamp(0, 1)
 
+def gradient_penalty(dis, real, fake, labels):
+    assert real.shape == fake.shape
+    B, C, H, W = real.shape
+    epsilon = torch.rand((B, 1, 1, 1)).repeat(1, C, H, W).to(real.device)
+    interpolated_imgs = real * epsilon + fake * (1 - epsilon)
+
+    mixed_scores = dis(interpolated_imgs, labels)
+
+    gradient = torch.autograd.grad(
+        inputs = interpolated_imgs,
+        outputs = mixed_scores,
+        grad_outputs = torch.ones_like(mixed_scores),
+        create_graph = True,
+        retain_graph = True,
+    )[0]
+
+    gradient = gradient.view(gradient.shape[0], -1)
+    gradient_norm = gradient.norm(2, dim = 1)
+    gradient_penalty = torch.mean((gradient_norm - 1) ** 2)
+    return gradient_penalty
+
 def train_net(
               img_path,
               net,
@@ -164,6 +185,8 @@ def train_net(
               ap = False, 
               aps = 3,
               ckpt = None):
+    
+    LAMBDA_GP = 10
 
     # create dataloader
     dataset_train = BasicDataset(img_path, crop_size = crop_size, resize = resize, l1_loss = l1_loss or args.l2)
@@ -203,8 +226,8 @@ def train_net(
     # not sure which optimizer will be better
     if args.wgan:
         gen, dis = net
-        optimizer_gen = optim.Adam(gen.parameters(), lr=lr, weight_decay=1e-8)
-        optimizer_dis = optim.Adam(dis.parameters(), lr=lr, weight_decay=1e-8)
+        optimizer_gen = optim.Adam(gen.parameters(), lr=1e-4, weight_decay=1e-8, betas = (0.5, 0.999))
+        optimizer_dis = optim.Adam(dis.parameters(), lr=1e-4, weight_decay=1e-8, betas = (0.5, 0.999))
     else:    
         #optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
         optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
@@ -273,27 +296,29 @@ def train_net(
             region = region.to(device=device, dtype=torch.float32)
             label = label.to(device=device, dtype=torch.float32)
 
-            # forward
-            # todo: add wgan branch
             if args.wgan:
-                optimizer_dis.zero_grad()
-                optimizer_gen.zero_grad()
-                # step discriminator first
-                gen_fake_nograd = gen(imgs, label).detach()
+                for p in dis.parameters():
+                    p.requires_grad = True   
+                # fake images
+                gen_fake = gen(imgs, label)
                 dis_real = dis(region, label)
-                dis_fake = dis(gen_fake_nograd, label)
-                loss_D = -torch.mean(dis_real) + torch.mean(dis_fake)
+                dis_fake = dis(gen_fake, label)
+                gp = gradient_penalty(dis, region, gen_fake, label)
+                loss_D = -(torch.mean(dis_real) - torch.mean(dis_fake)) + \
+                    LAMBDA_GP * gp
+                optimizer_dis.zero_grad()
                 loss_D.backward()
                 optimizer_dis.step()
 
-                # then step generator second, usually generator is stronger than discriminator
-                # but I'm not sure if now there are any other better training strategy
                 if global_step % 5 == 0:
                     assert args.l1 or args.l2
+                    for p in dis.parameters():
+                        p.requires_grad = False
                     gen_fake = gen(imgs, label)
                     recon_loss = criterion(gen_fake, region)
                     loss_G = -torch.mean(dis(gen_fake, label))
                     loss_G_all = recon_loss + loss_G
+                    optimizer_gen.zero_grad()
                     loss_G_all.backward()
                     optimizer_gen.step()
                     pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f"%(epoch, 
@@ -311,7 +336,7 @@ def train_net(
                         imgs = imgs.repeat((1, 3, 1, 1))
                     
                     gts_ = (denormalize(region) * 255).clamp(0, 255).cpu().numpy()
-                    pred_ = (denormalize(gen_fake_nograd) * 255).clamp(0, 255).detach().cpu().numpy()
+                    pred_ = (denormalize(gen_fake) * 255).clamp(0, 255).detach().cpu().numpy()
                     gts__ = []
                     pred__ = []
                     for i in range(gts.shape[0]):
@@ -322,7 +347,7 @@ def train_net(
                     gts_ = torch.Tensor(np.stack(gts__, axis = 0)).to(imgs.device)
                     pred_ = torch.Tensor(np.stack(pred__, axis = 0)).to(imgs.device)
                     gts = denormalize(region).repeat((1,3,1,1))
-                    pred = denormalize(gen_fake_nograd).repeat((1,3,1,1))
+                    pred = denormalize(gen_fake).repeat((1,3,1,1))
                     sample = torch.cat((imgs, gts, pred, gts_, pred_), dim = 0)
                     
                     if os.path.exists(result_folder) is False:
