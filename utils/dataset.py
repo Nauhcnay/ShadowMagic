@@ -149,7 +149,13 @@ class BasicDataset(Dataset):
             img_np, line_np, shad_np, flat_mask_np, shade_edge_np, shad_color_np = \
                 self.crop([img_np, line_np, shad_np, flat_mask_np, shade_edge_np, shad_color_np], bbox)
             img_np = np.array(self.jitter(Image.fromarray(img_np.astype(np.uint8))))
-
+        else:
+            img_np = img_np[:h//16*16, :w//16*16, ...]
+            line_np = line_np[:h//16*16, :w//16*16, ...]
+            shad_np = shad_np[:h//16*16, :w//16*16, ...]
+            flat_mask_np = flat_mask_np[:h//16*16, :w//16*16, ...]
+            shade_edge_np = shade_edge_np[:h//16*16, :w//16*16, ...]
+            shad_color_np = shad_color_np[:h//16*16, :w//16*16, ...]
 
         edge_np = to_edge(shad_color_np)
         skel_np = to_skeleton(edge_np)

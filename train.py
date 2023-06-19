@@ -462,7 +462,8 @@ def train_net(
                 'epoch': epoch,
                 'model_state_dict_d': dis.state_dict(),
                 'model_state_dict_g': gen.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
+                'optimizer_state_dict_dis': optimizer_dis.state_dict(),
+                'optimizer_state_dict_gen': optimizer_gen.state_dict(),
                 'lr_scheduler_state_dict': None,
                 'param': args
                 },
@@ -572,7 +573,8 @@ def train_net(
                         'epoch': epoch,
                         'model_state_dict_d': dis.state_dict(),
                         'model_state_dict_g': gen.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
+                        'optimizer_state_dict_dis': optimizer_dis.state_dict(),
+                        'optimizer_state_dict_gen': optimizer_gen.state_dict(),
                         'lr_scheduler_state_dict': None,
                         'param': args
                         },
