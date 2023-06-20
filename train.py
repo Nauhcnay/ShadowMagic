@@ -151,9 +151,9 @@ def gradient_penalty(dis, real, fake, labels):
     B, C, H, W = real.shape
     epsilon = torch.rand((B, 1, 1, 1)).repeat(1, C, H, W).to(real.device)
     interpolated_imgs = real * epsilon + fake * (1 - epsilon)
-    interpolated_imgs.requires_grad = True
+    # interpolated_imgs.requires_grad = True
 
-    mixed_scores = dis(interpolated_imgs, labels)
+    mixed_scores =  (interpolated_imgs, labels)
 
     gradient = torch.autograd.grad(
         inputs = interpolated_imgs,
@@ -161,6 +161,7 @@ def gradient_penalty(dis, real, fake, labels):
         grad_outputs = torch.ones_like(mixed_scores),
         create_graph = True,
         retain_graph = True,
+        only_inputs = True
     )[0]
 
     gradient = gradient.view(gradient.shape[0], -1)
