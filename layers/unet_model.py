@@ -111,6 +111,7 @@ class Discriminator(nn.Module):
             nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
             nn.Linear(512, 1)
+            # nn.Sigmoid(),
             )
     
     def forward(self, img, label):

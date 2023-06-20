@@ -151,6 +151,7 @@ def gradient_penalty(dis, real, fake, labels):
     B, C, H, W = real.shape
     epsilon = torch.rand((B, 1, 1, 1)).repeat(1, C, H, W).to(real.device)
     interpolated_imgs = real * epsilon + fake * (1 - epsilon)
+    interpolated_imgs.requires_grad = True
 
     mixed_scores = dis(interpolated_imgs, labels)
 
@@ -283,6 +284,11 @@ def train_net(
         # train
         pbar = tqdm(train_loader)
         epoch_loss = 0
+        if args.wgan:
+            gen.train()
+            dis.train()
+        else:
+            net.train()
         # for imgs, lines, gt_list, flat_mask, shade_edge, region, label in pbar:
         for imgs, lines, gts, flat_mask, shade_edge, region, label in pbar:
             # gts, _, _, _ = gts_list
@@ -304,10 +310,9 @@ def train_net(
                 # fake images
                 gen_fake = gen(imgs, label)
                 dis_real = dis(region, label)
-                dis_fake = dis(gen_fake, label)
+                dis_fake = dis(gen_fake.detach(), label)
                 gp = gradient_penalty(dis, region, gen_fake, label)
-                loss_D = -(torch.mean(dis_real) - torch.mean(dis_fake)) + \
-                    LAMBDA_GP * gp
+                loss_D = torch.mean(dis_fake - dis_real) + LAMBDA_GP * gp
                 optimizer_dis.zero_grad()
                 loss_D.backward()
                 optimizer_dis.step()
@@ -503,7 +508,7 @@ def train_net(
                 val_counter = 0
                 val_figs = []
                 dims = None
-                for val_img, val_lines, val_gt, val_flat_mask, val_shade_edge, val_region, label in val_loader:
+                for val_img, val_lines, val_gt, val_flat_mask, val_shade_edge, val_region, label in tqdm(val_loader):
                     if args.line_only:
                         val_img = val_lines
                     # predict
