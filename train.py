@@ -318,7 +318,7 @@ def train_net(
                 loss_D.backward()
                 optimizer_dis.step()
 
-                if global_step % 5 == 0:
+                if global_step % 1 == 0:
                     assert args.l1 or args.l2
                     for p in dis.parameters():
                         p.requires_grad = False
