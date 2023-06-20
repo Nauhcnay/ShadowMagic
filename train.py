@@ -153,7 +153,7 @@ def gradient_penalty(dis, real, fake, labels):
     interpolated_imgs = real * epsilon + fake * (1 - epsilon)
     # interpolated_imgs.requires_grad = True
 
-    mixed_scores =  (interpolated_imgs, labels)
+    mixed_scores =  dis(interpolated_imgs, labels)
 
     gradient = torch.autograd.grad(
         inputs = interpolated_imgs,
