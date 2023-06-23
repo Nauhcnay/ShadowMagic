@@ -306,29 +306,33 @@ def train_net(
             label = label.to(device=device, dtype=torch.float32)
 
             if args.wgan:
-                for p in dis.parameters():
-                    p.requires_grad = True   
-                # fake images
-                gen_fake = gen(imgs, label)
-                dis_real = dis(region, label)
-                dis_fake = dis(gen_fake.detach(), label)
-                gp = gradient_penalty(dis, region, gen_fake, label)
-                loss_D = torch.mean(dis_fake - dis_real) + LAMBDA_GP * gp
-                optimizer_dis.zero_grad()
-                loss_D.backward()
-                optimizer_dis.step()
-
-                if global_step % 1 == 0:
-                    assert args.l1 or args.l2
+                def dis_step():
                     for p in dis.parameters():
-                        p.requires_grad = False
+                        p.requires_grad = True   
+                    # fake images
                     gen_fake = gen(imgs, label)
-                    recon_loss = criterion(gen_fake, region)
-                    loss_G = -torch.mean(dis(gen_fake, label))
-                    loss_G_all = recon_loss + loss_G * 0.001
-                    optimizer_gen.zero_grad()
-                    loss_G_all.backward()
-                    optimizer_gen.step()
+                    dis_real = dis(region, label)
+                    dis_fake = dis(gen_fake.detach(), label)
+                    gp = gradient_penalty(dis, region, gen_fake, label)
+                    loss_D = torch.mean(dis_fake - dis_real) + LAMBDA_GP * gp
+                    optimizer_dis.zero_grad()
+                    loss_D.backward()
+                    optimizer_dis.step()
+                def gen_step():
+                        assert args.l1 or args.l2
+                        for p in dis.parameters():
+                            p.requires_grad = False
+                        gen_fake = gen(imgs, label)
+                        recon_loss = criterion(gen_fake, region)
+                        loss_G = -torch.mean(dis(gen_fake, label))
+                        loss_G_all = recon_loss + loss_G * 0.001
+                        optimizer_gen.zero_grad()
+                        loss_G_all.backward()
+                        optimizer_gen.step()
+                gen_step()    
+                
+                if global_step % 5 == 0:
+                    dis_step()
                     pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f"%(epoch, 
                         start_epoch + epochs, loss_G.item(), loss_D.item(), recon_loss.item()))
                 
