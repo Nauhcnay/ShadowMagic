@@ -230,8 +230,10 @@ def train_net(
     # not sure which optimizer will be better
     if args.wgan:
         gen, dis = net
-        optimizer_gen = optim.Adam(gen.parameters(), lr=1e-4, weight_decay=1e-8)
-        optimizer_dis = optim.Adam(dis.parameters(), lr=1e-4, weight_decay=1e-8)
+        # optimizer_gen = optim.Adam(gen.parameters(), lr=1e-4, weight_decay=1e-8)
+        # optimizer_dis = optim.Adam(dis.parameters(), lr=1e-4, weight_decay=1e-8)
+        optimizer_gen = optim.Adam(gen.parameters(), lr=1e-4)
+        optimizer_dis = optim.Adam(dis.parameters(), lr=1e-4)
     else:    
         #optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
         optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
@@ -308,7 +310,9 @@ def train_net(
             if args.wgan:
                 def dis_step():
                     for p in dis.parameters():
-                        p.requires_grad = True   
+                        p.requires_grad = True
+                    for p in gen.parameters():
+                        p.requires_grad = False
                     # fake images
                     gen_fake = gen(imgs, label)
                     dis_real = dis(region, label)
@@ -324,10 +328,12 @@ def train_net(
                         assert args.l1 or args.l2
                         for p in dis.parameters():
                             p.requires_grad = False
+                        for p in gen.parameters():
+                            p.requires_grad = True
                         gen_fake = gen(imgs, label)
                         recon_loss = criterion(gen_fake, region)
                         loss_G = -torch.mean(dis(gen_fake, label))
-                        loss_G_all = recon_loss + loss_G * 0.001
+                        loss_G_all = recon_loss + loss_G * 0.0001
                         optimizer_gen.zero_grad()
                         loss_G_all.backward()
                         optimizer_gen.step()
@@ -336,7 +342,7 @@ def train_net(
                 gen_fake, recon_loss, loss_G, loss_G_all = gen_step()
 
 
-                if global_step % 5 == 0:
+                if global_step % 10 == 0:
                     gen_fake, dis_real, dis_fake, loss_D = dis_step()
                     pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f"%(epoch, 
                         start_epoch + epochs, loss_G.item(), loss_D.item(), recon_loss.item()))
