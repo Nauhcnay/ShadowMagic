@@ -311,18 +311,21 @@ def train_net(
                 def dis_step():
                     for p in dis.parameters():
                         p.requires_grad = True
-                    for p in gen.parameters():
-                        p.requires_grad = False
+                    # for p in gen.parameters():
+                    #     p.requires_grad = False
                     # fake images
                     gen_fake = gen(imgs, label)
                     dis_real = dis(region, label)
                     dis_fake = dis(gen_fake.detach(), label)
                     gp = gradient_penalty(dis, region, gen_fake, label)
-                    loss_D = torch.mean(dis_fake - dis_real) + LAMBDA_GP * gp
+                    loss_D = torch.mean(dis_fake - dis_real)
+                    loss_D_all = loss_D + LAMBDA_GP * gp
+                    for p in gen.parameters():
+                        p.requires_grad = False
                     optimizer_dis.zero_grad()
-                    loss_D.backward()
+                    loss_D_all.backward()
                     optimizer_dis.step()
-                    return gen_fake, dis_real, dis_fake, loss_D
+                    return gen_fake, dis_real, dis_fake, loss_D, gp
 
                 def gen_step():
                         assert args.l1 or args.l2
@@ -343,9 +346,9 @@ def train_net(
 
 
                 if global_step % 10 == 0:
-                    gen_fake, dis_real, dis_fake, loss_D = dis_step()
-                    pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f"%(epoch, 
-                        start_epoch + epochs, loss_G.item(), loss_D.item(), recon_loss.item()))
+                    gen_fake, dis_real, dis_fake, loss_D, gp = dis_step()
+                    pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f, GP:%.4f"%(epoch, 
+                        start_epoch + epochs, loss_G.item(), loss_D.item(), recon_loss.item(), gp.item()))
                 
                 # record to wandb
                 if global_step % 350 == 0 and args.log:
