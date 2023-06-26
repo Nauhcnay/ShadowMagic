@@ -339,7 +339,7 @@ def train_net(
                         if args.l1:
                             loss_G_all = recon_loss + loss_G * 0.0001
                         else:
-                            loss_G_all = recon_loss + loss_G * 0.0005
+                            loss_G_all = recon_loss + loss_G * 0.01
                         optimizer_gen.zero_grad()
                         loss_G_all.backward()
                         optimizer_gen.step()
