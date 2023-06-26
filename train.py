@@ -336,12 +336,17 @@ def train_net(
                         gen_fake = gen(imgs, label)
                         recon_loss = criterion(gen_fake, region)
                         loss_G = -torch.mean(dis(gen_fake, label))
-                        loss_G_all = recon_loss + loss_G * 0.001
+                        if args.l1:
+                            loss_G_all = recon_loss + loss_G * 0.0001
+                        else:
+                            loss_G_all = recon_loss + loss_G * 0.0005
                         optimizer_gen.zero_grad()
                         loss_G_all.backward()
                         optimizer_gen.step()
                         return gen_fake, recon_loss, loss_G, loss_G_all
+
                 gen_fake, recon_loss, loss_G, loss_G_all = gen_step()
+                
                 if global_step % 1 == 0:
                     gen_fake, dis_real, dis_fake, loss_D, gp = dis_step()
                     pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f, GP:%.4f"%(epoch, 
