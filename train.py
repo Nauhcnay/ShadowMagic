@@ -336,7 +336,7 @@ def train_net(
                         gen_fake = gen(imgs, label)
                         recon_loss = criterion(gen_fake, region)
                         loss_G = -torch.mean(dis(gen_fake, label))
-                        loss_G_all = recon_loss + loss_G * 0.0001
+                        loss_G_all = recon_loss + loss_G * 0.01
                         optimizer_gen.zero_grad()
                         loss_G_all.backward()
                         optimizer_gen.step()
@@ -353,7 +353,8 @@ def train_net(
                 # record to wandb
                 if global_step % 350 == 0 and args.log:
                     wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
-                    wandb.log({'DLoss:': loss_D.item()}, step = global_step) 
+                    wandb.log({'DLoss:': loss_D.item()}, step = global_step)
+                    wandb.log({'Gradient Penalty:': gp.item()}, step = global_step) 
                     wandb.log({'Reconstruction Loss:': recon_loss.item()}, step = global_step) 
                 
                 if global_step % 1050 == 0:

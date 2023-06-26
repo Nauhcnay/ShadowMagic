@@ -96,21 +96,29 @@ class Discriminator(nn.Module):
     def __init__(self, in_channels = 2):
         super().__init__()
 
-        def critic_block(in_filters, out_filters, normalization = True):
-            layers = [nn.Conv2d(in_filters, out_filters, kernel_size = 4, stride = 2, padding = 1)]
+        def critic_block(in_filters, out_filters, normalization = True, stride = 2, kernel_size = 4):
+            layers = [nn.Conv2d(in_filters, out_filters, kernel_size = kernel_size, stride = stride, padding = 1)]
             if normalization:
                 layers.append(nn.InstanceNorm2d(out_filters))
             layers.append(nn.LeakyReLU(0.2, inplace = True))
             return layers
 
         self.model = nn.Sequential(
-            *critic_block(in_channels, 64, False),
-            *critic_block(64, 128),
-            *critic_block(128, 256),
-            *critic_block(256, 512),
-            nn.AdaptiveAvgPool2d(1),
-            nn.Flatten(),
-            nn.Linear(512, 1)
+            *critic_block(in_channels, 16, False, 1, 3),
+            *critic_block(16, 32, True, 2, 4),
+            *critic_block(32, 32, True, 1, 3),
+            *critic_block(32, 64, True, 2, 4),
+            *critic_block(64, 64, True, 1, 3),
+            *critic_block(64, 128, True, 2, 4),
+            *critic_block(128, 128, True, 1, 3),
+            *critic_block(128, 256, True, 2, 4),
+            *critic_block(256, 256, True, 1, 3),
+            *critic_block(256, 512, True, 2, 4),
+            *critic_block(512, 512, True, 1, 3),
+            *critic_block(512, 1, False, 1, 3),
+            # nn.AdaptiveAvgPool2d(1),
+            # nn.Flatten(),
+            # nn.Linear(512, 1)
             # nn.Sigmoid(),
             )
     
