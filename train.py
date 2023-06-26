@@ -311,8 +311,8 @@ def train_net(
                 def dis_step():
                     for p in dis.parameters():
                         p.requires_grad = True
-                    # for p in gen.parameters():
-                    #     p.requires_grad = False
+                    for p in gen.parameters():
+                        p.requires_grad = True
                     # fake images
                     gen_fake = gen(imgs, label)
                     dis_real = dis(region, label)
@@ -342,11 +342,10 @@ def train_net(
                         optimizer_gen.step()
                         return gen_fake, recon_loss, loss_G, loss_G_all
 
-                gen_fake, recon_loss, loss_G, loss_G_all = gen_step()
+                gen_fake, dis_real, dis_fake, loss_D, gp = dis_step()
 
-
-                if global_step % 10 == 0:
-                    gen_fake, dis_real, dis_fake, loss_D, gp = dis_step()
+                if global_step % 2 == 0:
+                    gen_fake, recon_loss, loss_G, loss_G_all = gen_step()    
                     pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f, GP:%.4f"%(epoch, 
                         start_epoch + epochs, loss_G.item(), loss_D.item(), recon_loss.item(), gp.item()))
                 
