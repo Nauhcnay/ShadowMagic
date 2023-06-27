@@ -310,31 +310,41 @@ def train_net(
 
             if args.wgan:
                 assert args.l1 or args.l2
-                # forward
+                # forward D
                 gen_fake = gen(imgs, label)
-                dis_real, f_real = dis(region, label)
-                dis_fake, f_fake = dis(gen_fake, label)
+                dis_real, _ = dis(region, label)
+                dis_fake, _ = dis(gen_fake, label)
 
-                # compute loss
-                loss_F = 0
-                for i in range(len(f_real)):
-                    loss_F += criterion(f_real[i], f_fake[i])
+                # compute D loss
                 loss_D = torch.mean(dis_fake - dis_real)
                 gp = gradient_penalty(dis, region, gen_fake, label)
                 loss_D_all = loss_D + LAMBDA_GP * gp
+                
+                # back propagate D
+                optimizer_dis.zero_grad()
+                loss_D_all.backward()
+                optimizer_dis.step()
+
+                # forward G
+                dis_fake, f_fake = dis(gen(imgs, label), label)
+                _, f_real = dis(region, label)
+
+                # compute G loss
+                loss_F = 0
+                for i in range(len(f_real)):
+                    loss_F += criterion(f_real[i], f_fake[i])
                 loss_G = -torch.mean(dis_fake)
                 loss_G_all = loss_F + 0.01 * loss_G
 
-                # back propagate
-                # optimizer_dis.zero_grad()
-                # loss_D_all.backward()
-                # optimizer_dis.step()
-                # optimizer_gen.zero_grad()
-                # loss_G_all.backward()
-                # optimizer_gen.step()               
-                optimizer.zero_grad()
-                (loss_D_all + loss_G_all).backward()
-                optimizer.step()
+                # back propagate G
+                optimizer_gen.zero_grad()
+                loss_G_all.backward()
+                optimizer_gen.step()
+
+                # optimizer.zero_grad()
+                # (loss_D_all + loss_G_all).backward()
+                # optimizer.step()
+
                 # record to console
                 pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f, GP:%.4f"%(epoch, 
                     start_epoch + epochs, loss_G.item(), loss_D.item(), loss_F.item(), gp.item()))
