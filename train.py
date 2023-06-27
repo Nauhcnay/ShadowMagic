@@ -153,7 +153,7 @@ def gradient_penalty(dis, real, fake, labels):
     interpolated_imgs = real * epsilon + fake * (1 - epsilon)
     # interpolated_imgs.requires_grad = True
 
-    mixed_scores =  dis(interpolated_imgs, labels)
+    mixed_scores, _ =  dis(interpolated_imgs, labels)
 
     gradient = torch.autograd.grad(
         inputs = interpolated_imgs,
@@ -234,6 +234,7 @@ def train_net(
         # optimizer_dis = optim.Adam(dis.parameters(), lr=1e-4, weight_decay=1e-8)
         optimizer_gen = optim.Adam(gen.parameters(), lr=1e-4)
         optimizer_dis = optim.Adam(dis.parameters(), lr=1e-4)
+        optimizer = optim.Adam(list(dis.parameters()) + list(gen.parameters()), lr=1e-4)
     else:    
         #optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
         optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
@@ -308,57 +309,44 @@ def train_net(
             label = label.to(device=device, dtype=torch.float32)
 
             if args.wgan:
-                def dis_step():
-                    for p in dis.parameters():
-                        p.requires_grad = True
-                    for p in gen.parameters():
-                        p.requires_grad = True
-                    # fake images
-                    gen_fake = gen(imgs, label)
-                    dis_real = dis(region, label)
-                    dis_fake = dis(gen_fake.detach(), label)
-                    gp = gradient_penalty(dis, region, gen_fake, label)
-                    loss_D = torch.mean(dis_fake - dis_real)
-                    loss_D_all = loss_D + LAMBDA_GP * gp
-                    for p in gen.parameters():
-                        p.requires_grad = False
-                    optimizer_dis.zero_grad()
-                    loss_D_all.backward()
-                    optimizer_dis.step()
-                    return gen_fake, dis_real, dis_fake, loss_D, gp
+                assert args.l1 or args.l2
+                # forward
+                gen_fake = gen(imgs, label)
+                dis_real, f_real = dis(region, label)
+                dis_fake, f_fake = dis(gen_fake, label)
 
-                def gen_step():
-                        assert args.l1 or args.l2
-                        for p in dis.parameters():
-                            p.requires_grad = False
-                        for p in gen.parameters():
-                            p.requires_grad = True
-                        gen_fake = gen(imgs, label)
-                        recon_loss = criterion(gen_fake, region)
-                        loss_G = -torch.mean(dis(gen_fake, label))
-                        if args.l1:
-                            loss_G_all = recon_loss + loss_G * 0.0001
-                        else:
-                            loss_G_all = recon_loss + loss_G * 0.01
-                        optimizer_gen.zero_grad()
-                        loss_G_all.backward()
-                        optimizer_gen.step()
-                        return gen_fake, recon_loss, loss_G, loss_G_all
+                # compute loss
+                loss_F = 0
+                for i in range(len(f_real)):
+                    loss_F += criterion(f_real[i], f_fake[i])
+                loss_D = torch.mean(dis_fake - dis_real)
+                gp = gradient_penalty(dis, region, gen_fake, label)
+                loss_D_all = loss_D + LAMBDA_GP * gp
+                loss_G = -torch.mean(dis_fake)
+                loss_G_all = loss_F + 0.01 * loss_G
 
-                gen_fake, recon_loss, loss_G, loss_G_all = gen_step()
-                
-                if global_step % 1 == 0:
-                    gen_fake, dis_real, dis_fake, loss_D, gp = dis_step()
-                    pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f, GP:%.4f"%(epoch, 
-                        start_epoch + epochs, loss_G.item(), loss_D.item(), recon_loss.item(), gp.item()))
+                # back propagate
+                # optimizer_dis.zero_grad()
+                # loss_D_all.backward()
+                # optimizer_dis.step()
+                # optimizer_gen.zero_grad()
+                # loss_G_all.backward()
+                # optimizer_gen.step()               
+                optimizer.zero_grad()
+                (loss_D_all + loss_G_all).backward()
+                optimizer.step()
+                # record to console
+                pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f, GP:%.4f"%(epoch, 
+                    start_epoch + epochs, loss_G.item(), loss_D.item(), loss_F.item(), gp.item()))
                 
                 # record to wandb
                 if global_step % 350 == 0 and args.log:
                     wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
                     wandb.log({'DLoss:': loss_D.item()}, step = global_step)
                     wandb.log({'Gradient Penalty:': gp.item()}, step = global_step) 
-                    wandb.log({'Reconstruction Loss:': recon_loss.item()}, step = global_step) 
+                    wandb.log({'Reconstruction Loss:': loss_F.item()}, step = global_step) 
                 
+                # visualize prediction
                 if global_step % 1050 == 0:
                     imgs = denormalize(imgs)
                     if args.line_only:

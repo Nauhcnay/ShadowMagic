@@ -102,25 +102,42 @@ class Discriminator(nn.Module):
                 layers.append(nn.InstanceNorm2d(out_filters))
             layers.append(nn.LeakyReLU(0.2, inplace = True))
             return layers
-
-        self.model = nn.Sequential(
-            *critic_block(in_channels, 16, False, 1, 3),
+        self.ds0 = nn.Sequential(*critic_block(in_channels, 16, False, 1, 3))
+        self.ds2 = nn.Sequential(
             *critic_block(16, 32, True, 2, 4),
-            *critic_block(32, 32, True, 1, 3),
+            *critic_block(32, 32, True, 1, 3),)
+        self.ds4 = nn.Sequential(
             *critic_block(32, 64, True, 2, 4),
-            *critic_block(64, 64, True, 1, 3),
+            *critic_block(64, 64, True, 1, 3),)
+        self.ds8 = nn.Sequential(
             *critic_block(64, 128, True, 2, 4),
-            *critic_block(128, 128, True, 1, 3),
+            *critic_block(128, 128, True, 1, 3),)
+        self.ds16 = nn.Sequential(
             *critic_block(128, 256, True, 2, 4),
-            *critic_block(256, 256, True, 1, 3),
+            *critic_block(256, 256, True, 1, 3),)
+        self.ds32 = nn.Sequential(
             *critic_block(256, 512, True, 2, 4),
-            *critic_block(512, 512, True, 1, 3),
-            *critic_block(512, 1, False, 1, 3),
-            # nn.AdaptiveAvgPool2d(1),
-            # nn.Flatten(),
-            # nn.Linear(512, 1)
-            # nn.Sigmoid(),
-            )
+            *critic_block(512, 512, True, 1, 3),)
+        self.outc = nn.Sequential(*critic_block(512, 1, False, 1, 3))
+
+        # self.model = nn.Sequential(
+        #     *critic_block(in_channels, 16, False, 1, 3),
+        #     *critic_block(16, 32, True, 2, 4),
+        #     *critic_block(32, 32, True, 1, 3),
+        #     *critic_block(32, 64, True, 2, 4),
+        #     *critic_block(64, 64, True, 1, 3),
+        #     *critic_block(64, 128, True, 2, 4),
+        #     *critic_block(128, 128, True, 1, 3),
+        #     *critic_block(128, 256, True, 2, 4),
+        #     *critic_block(256, 256, True, 1, 3),
+        #     *critic_block(256, 512, True, 2, 4),
+        #     *critic_block(512, 512, True, 1, 3),
+        #     *critic_block(512, 1, False, 1, 3),
+        #     # nn.AdaptiveAvgPool2d(1),
+        #     # nn.Flatten(),
+        #     # nn.Linear(512, 1)
+        #     # nn.Sigmoid(),
+        #     )
     
     def forward(self, img, label):
         # expand label to the same size as input image
@@ -128,5 +145,12 @@ class Discriminator(nn.Module):
         label = label.unsqueeze(-1).unsqueeze(-1).expand(b, 1, h, w)
         # get input ready
         img = torch.cat((img, label), dim = 1)
-        output = self.model(img)
-        return output
+        f_ds0 = self.ds0(img)
+        f_ds2 = self.ds2(f_ds0)
+        f_ds4 = self.ds4(f_ds2)
+        f_ds8 = self.ds8(f_ds4)
+        f_ds16 = self.ds16(f_ds8)
+        f_ds32 = self.ds32(f_ds16)
+        outc = self.outc(f_ds32)
+        # output = self.model(img)
+        return outc, (f_ds0, f_ds2, f_ds4, f_ds8, f_ds16, f_ds32)
