@@ -344,7 +344,7 @@ def train_net(
                         loss_F = 0
                         for i in range(len(f_real)):
                             loss_F += criterion(f_real[i], f_fake[i])
-                        loss_G_all = loss_F + 0.01 * loss_G + loss_diff
+                        loss_G_all += loss_F
 
                     # back propagate G
                     loss_G_all.backward()
