@@ -233,9 +233,9 @@ def train_net(
         gen, dis = net
         # optimizer_gen = optim.Adam(gen.parameters(), lr=1e-4, weight_decay=1e-8)
         # optimizer_dis = optim.Adam(dis.parameters(), lr=1e-4, weight_decay=1e-8)
-        optimizer_gen = optim.Adam(gen.parameters(), lr=1e-4)
+        optimizer_gen = optim.Adam(gen.parameters(), lr=1e-3)
         optimizer_dis = optim.Adam(dis.parameters(), lr=1e-4)
-        optimizer = optim.Adam(list(dis.parameters()) + list(gen.parameters()), lr=1e-4)
+        # optimizer = optim.Adam(list(dis.parameters()) + list(gen.parameters()), lr=1e-4)
     else:    
         #optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
         optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)

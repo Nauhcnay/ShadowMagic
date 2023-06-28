@@ -63,18 +63,18 @@ class UNet(nn.Module):
 class Generator(nn.Module):
     def __init__(self, in_channels, out_channels, drop_out = -1, attention = False):
         super().__init__()
-        self.inc = ResBlock(in_channels, 64, drop_out = drop_out)
-        self.down1 = DownResNet(64, 128, attention, drop_out = drop_out)
-        self.down2 = DownResNet(128, 256, attention, drop_out = drop_out)
-        self.down3 = DownResNet(256, 512, attention, drop_out = drop_out)
-        self.down4 = DownResNet(513, 512, attention, drop_out = drop_out)
-        self.bottle1 = DilatedConvResNet(512, 512)
-        self.bottle2 = DilatedConvResNet(512, 512)
-        self.up1 = UpResNet(1024, 256)
-        self.up2 = UpResNet(512, 128)
-        self.up3 = UpResNet(256, 64)
-        self.up4 = UpResNet(128, 64)
-        self.outc = ResBlock(64, out_channels, kernel_size = 1)
+        self.inc = ResBlock(in_channels, 64, drop_out = drop_out, wgan = True)
+        self.down1 = DownResNet(64, 128, attention, drop_out = drop_out, wgan = True)
+        self.down2 = DownResNet(128, 256, attention, drop_out = drop_out, wgan = True)
+        self.down3 = DownResNet(256, 512, attention, drop_out = drop_out, wgan = True)
+        self.down4 = DownResNet(513, 512, attention, drop_out = drop_out, wgan = True)
+        self.bottle1 = DilatedConvResNet(512, 512, wgan = True)
+        self.bottle2 = DilatedConvResNet(512, 512, wgan = True)
+        self.up1 = UpResNet(1024, 256, wgan = True)
+        self.up2 = UpResNet(512, 128, wgan = True)
+        self.up3 = UpResNet(256, 64, wgan = True)
+        self.up4 = UpResNet(128, 64, wgan = True)
+        self.outc = ResBlock(64, out_channels, kernel_size = 1, wgan = True)
     
     def forward(self, x, label):
         x1 = self.inc(x)
@@ -99,7 +99,7 @@ class Discriminator(nn.Module):
         def critic_block(in_filters, out_filters, normalization = True, stride = 2, kernel_size = 4):
             layers = [nn.Conv2d(in_filters, out_filters, kernel_size = kernel_size, stride = stride, padding = 1)]
             if normalization:
-                layers.append(nn.InstanceNorm2d(out_filters))
+                layers.append(nn.InstanceNorm2d(out_filters, affine = True))
             layers.append(nn.LeakyReLU(0.2, inplace = True))
             return layers
         self.ds0 = nn.Sequential(*critic_block(in_channels, 16, False, 1, 3))

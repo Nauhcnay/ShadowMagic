@@ -35,16 +35,16 @@ class LayerAttention(nn.Module):
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
-    def __init__(self, in_channels, out_channels, mid_channels=None):
+    def __init__(self, in_channels, out_channels, mid_channels=None, wgan = False):
         super().__init__()
         if not mid_channels:
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(mid_channels),
+            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace=True),
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(out_channels),
+            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace=True)
         )
 
@@ -54,16 +54,16 @@ class DoubleConv(nn.Module):
 class DoubleDilatedConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
-    def __init__(self, in_channels, out_channels, mid_channels=None):
+    def __init__(self, in_channels, out_channels, mid_channels=None, wgan = False):
         super().__init__()
         if not mid_channels:
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding="same", dilation=2),
-            nn.BatchNorm2d(mid_channels),
+            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace=True),
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding="same", dilation=2),
-            nn.BatchNorm2d(out_channels),
+            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace=True)
         )
 
@@ -149,14 +149,14 @@ class OutConv(nn.Module):
 # thanks for https://www.kaggle.com/code/salimhammadi07/pix2pix-image-colorization-with-conditional-wgan
 # this is a conditional discriminator
 class ResBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride = 1, kernel_size = 3, drop_out = False, dilation = 1):
+    def __init__(self, in_channels, out_channels, stride = 1, kernel_size = 3, drop_out = False, dilation = 1, wgan = False):
         super().__init__()
         self.layers = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = stride, bias = False, dilation = dilation),
-            nn.BatchNorm2d(out_channels),
+            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace = True),
             nn.Conv2d(out_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = 1, bias = False, dilation = dilation),
-            nn.BatchNorm2d(out_channels),
+            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace = True)
         )
         self.indentity_map = nn.Conv2d(in_channels, out_channels, kernel_size, stride = stride, padding = 'same', dilation = dilation)
@@ -181,28 +181,28 @@ class ResBlock(nn.Module):
 
 
 class DownResNet(nn.Module):
-    def __init__(self, in_channels, out_channels, attn = False, drop_out = -1):
+    def __init__(self, in_channels, out_channels, attn = False, drop_out = -1, wgan = False):
         super().__init__()
         if attn:
             self.layers = nn.Sequential(
                 nn.MaxPool2d(2),
-                ResBlock(in_channels, out_channels, drop_out = drop_out),
+                ResBlock(in_channels, out_channels, drop_out = drop_out, wgan = wgan),
                 LayerAttention(out_channels),
                 SpatialAttention(out_channels)
             )
         else:
             self.layers = nn.Sequential(
                 nn.MaxPool2d(2),
-                ResBlock(in_channels, out_channels, drop_out = drop_out)
+                ResBlock(in_channels, out_channels, drop_out = drop_out, wgan = wgan)
             )
     def forward(self, x):
         return self.layers(x)
 
 class UpResNet(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, wgan = False):
         super().__init__()
         self.up = nn.Upsample(scale_factor = 2, mode = 'bilinear', align_corners = True)
-        self.res_block = ResBlock(in_channels, out_channels)
+        self.res_block = ResBlock(in_channels, out_channels, wgan = wgan)
     def forward(self, x, skip):
         x = self.up(x)
         x = torch.cat((x, skip), dim = 1)
@@ -212,13 +212,13 @@ class UpResNet(nn.Module):
 class DilatedConvResNet(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
-    def __init__(self, in_channels, out_channels, mid_channels=None):
+    def __init__(self, in_channels, out_channels, mid_channels=None, wgan = False):
         super().__init__()
         if not mid_channels:
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
-            ResBlock(in_channels, mid_channels, kernel_size=3, dilation=2),
-            ResBlock(mid_channels, out_channels, kernel_size=3, dilation=2)
+            ResBlock(in_channels, mid_channels, kernel_size=3, dilation=2, wgan = wgan),
+            ResBlock(mid_channels, out_channels, kernel_size=3, dilation=2, wgan = wgan)
         )
 
     def forward(self, x):
