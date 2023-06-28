@@ -668,7 +668,7 @@ def get_args():
                         help='Load model from a .pth file')
     parser.add_argument('-r', '--resize', dest="resize", type=int, default=1024,
                         help='resize the shorter edge of the training image')
-    parser.add_argument('-gstep', dest="gstep", type=int, default=5,
+    parser.add_argument('--gstep', dest="gstep", type=int, default=5,
                         help='train G one time after every gstep of D training')
     parser.add_argument('-i', '--imgs', dest="imgs", type=str,
                         help='the path to training set', default = "./dataset")

@@ -42,8 +42,10 @@ class DoubleConv(nn.Module):
         if wgan:
             self.double_conv = nn.Sequential(
                 nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1),
+                nn.InstanceNorm2d(mid_channels),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1),
+                nn.InstanceNorm2d(out_channels),
                 nn.ReLU(inplace=True)
             )
         else:    
@@ -52,7 +54,7 @@ class DoubleConv(nn.Module):
                 nn.BatchNorm2d(mid_channels),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1),
-                nn.BatchNorm2d(mid_channels),
+                nn.BatchNorm2d(out_channels),
                 nn.ReLU(inplace=True)
             )
 
@@ -69,8 +71,10 @@ class DoubleDilatedConv(nn.Module):
         if wgan:
             self.double_conv = nn.Sequential(
                 nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding="same", dilation=2),
+                nn.InstanceNorm2d(mid_channels),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding="same", dilation=2),
+                nn.InstanceNorm2d(out_channels),
                 nn.ReLU(inplace=True)
             )
         else:
@@ -79,7 +83,7 @@ class DoubleDilatedConv(nn.Module):
                 nn.BatchNorm2d(mid_channels),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding="same", dilation=2),
-                nn.BatchNorm2d(mid_channels),
+                nn.BatchNorm2d(out_channels),
                 nn.ReLU(inplace=True)
             )
 
@@ -165,9 +169,18 @@ class OutConv(nn.Module):
 # thanks for https://www.kaggle.com/code/salimhammadi07/pix2pix-image-colorization-with-conditional-wgan
 # this is a conditional discriminator
 class ResBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride = 1, kernel_size = 3, drop_out = False, dilation = 1, wgan = False):
+    def __init__(self, in_channels, out_channels, stride = 1, kernel_size = 3, drop_out = False, dilation = 1, wgan = False, no_norm = False):
         super().__init__()
-        if wgan:
+        if wgan and no_norm == False:
+            self.layers = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = stride, bias = False, dilation = dilation),
+                nn.InstanceNorm2d(out_channels),
+                nn.ReLU(inplace = True),
+                nn.Conv2d(out_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = 1, bias = False, dilation = dilation),
+                nn.InstanceNorm2d(out_channels),
+                nn.ReLU(inplace = True)
+            )
+        elif wgan and no_norm:
             self.layers = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = stride, bias = False, dilation = dilation),
                 nn.ReLU(inplace = True),
@@ -180,7 +193,7 @@ class ResBlock(nn.Module):
                 nn.BatchNorm2d(mid_channels),
                 nn.ReLU(inplace = True),
                 nn.Conv2d(out_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = 1, bias = False, dilation = dilation),
-                nn.BatchNorm2d(mid_channels),
+                nn.BatchNorm2d(out_channels),
                 nn.ReLU(inplace = True)
             )
         self.indentity_map = nn.Conv2d(in_channels, out_channels, kernel_size, stride = stride, padding = 'same', dilation = dilation)

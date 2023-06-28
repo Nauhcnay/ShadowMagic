@@ -63,7 +63,7 @@ class UNet(nn.Module):
 class Generator(nn.Module):
     def __init__(self, in_channels, out_channels, drop_out = -1, attention = False):
         super().__init__()
-        self.inc = ResBlock(in_channels, 64, drop_out = drop_out, wgan = True)
+        self.inc = ResBlock(in_channels, 64, drop_out = drop_out, wgan = True, no_norm = True)
         self.down1 = DownResNet(64, 128, attention, drop_out = drop_out, wgan = True)
         self.down2 = DownResNet(128, 256, attention, drop_out = drop_out, wgan = True)
         self.down3 = DownResNet(256, 512, attention, drop_out = drop_out, wgan = True)
