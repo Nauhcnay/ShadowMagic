@@ -218,6 +218,7 @@ def train_net(
         Drop Out:        {drop_out}
         Loss:            {"L1 or L2" if (l1_loss or args.l2) else "BCE"}
         Attention:       {args.att}
+        G Step:          {args.gstep}
     ''')
 
     now = datetime.now()
@@ -325,7 +326,7 @@ def train_net(
                 loss_D_all.backward()
                 optimizer_dis.step()
 
-                if global_step % 5 == 0:
+                if global_step % args.gstep == 0:
                     # forward G
                     dis_fake, f_fake = dis(gen(imgs, label), label)
                     _, f_real = dis(region, label)
@@ -341,7 +342,7 @@ def train_net(
                     # back propagate G
                     loss_G_all.backward()
                     optimizer_gen.step()
-                                    
+
                     # record to console
                     pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f, GP:%.4f"%(epoch, 
                         start_epoch + epochs, loss_G.item(), loss_D.item(), loss_F.item(), gp.item()))
@@ -652,6 +653,8 @@ def get_args():
                         help='Load model from a .pth file')
     parser.add_argument('-r', '--resize', dest="resize", type=int, default=1024,
                         help='resize the shorter edge of the training image')
+    parser.add_argument('-gstep', dest="gstep", type=int, default=5,
+                        help='train G one time after every gstep of D training')
     parser.add_argument('-i', '--imgs', dest="imgs", type=str,
                         help='the path to training set', default = "./dataset")
     parser.add_argument('--log', action="store_true", help='enable wandb log')
