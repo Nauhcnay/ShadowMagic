@@ -233,8 +233,8 @@ def train_net(
         gen, dis = net
         # optimizer_gen = optim.Adam(gen.parameters(), lr=1e-4, weight_decay=1e-8)
         # optimizer_dis = optim.Adam(dis.parameters(), lr=1e-4, weight_decay=1e-8)
-        optimizer_gen = optim.Adam(gen.parameters(), lr=1e-3)
-        optimizer_dis = optim.Adam(dis.parameters(), lr=1e-4)
+        optimizer_gen = optim.Adam(gen.parameters(), lr=lr)
+        optimizer_dis = optim.Adam(dis.parameters(), lr=lr)
         # optimizer = optim.Adam(list(dis.parameters()) + list(gen.parameters()), lr=1e-4)
     else:    
         #optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
@@ -668,7 +668,7 @@ def get_args():
                         help='Load model from a .pth file')
     parser.add_argument('-r', '--resize', dest="resize", type=int, default=1024,
                         help='resize the shorter edge of the training image')
-    parser.add_argument('--gstep', dest="gstep", type=int, default=5,
+    parser.add_argument('--gstep', dest="gstep", type=int, default=2,
                         help='train G one time after every gstep of D training')
     parser.add_argument('-i', '--imgs', dest="imgs", type=str,
                         help='the path to training set', default = "./dataset")
