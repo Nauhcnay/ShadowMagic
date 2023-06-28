@@ -39,14 +39,22 @@ class DoubleConv(nn.Module):
         super().__init__()
         if not mid_channels:
             mid_channels = out_channels
-        self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1),
-            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1),
-            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
-            nn.ReLU(inplace=True)
-        )
+        if wgan:
+            self.double_conv = nn.Sequential(
+                nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True)
+            )
+        else:    
+            self.double_conv = nn.Sequential(
+                nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1),
+                nn.BatchNorm2d(mid_channels),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1),
+                nn.BatchNorm2d(mid_channels),
+                nn.ReLU(inplace=True)
+            )
 
     def forward(self, x):
         return self.double_conv(x)
@@ -58,14 +66,22 @@ class DoubleDilatedConv(nn.Module):
         super().__init__()
         if not mid_channels:
             mid_channels = out_channels
-        self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding="same", dilation=2),
-            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding="same", dilation=2),
-            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
-            nn.ReLU(inplace=True)
-        )
+        if wgan:
+            self.double_conv = nn.Sequential(
+                nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding="same", dilation=2),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding="same", dilation=2),
+                nn.ReLU(inplace=True)
+            )
+        else:
+            self.double_conv = nn.Sequential(
+                nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding="same", dilation=2),
+                nn.BatchNorm2d(mid_channels),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding="same", dilation=2),
+                nn.BatchNorm2d(mid_channels),
+                nn.ReLU(inplace=True)
+            )
 
     def forward(self, x):
         return self.double_conv(x)
@@ -151,14 +167,22 @@ class OutConv(nn.Module):
 class ResBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride = 1, kernel_size = 3, drop_out = False, dilation = 1, wgan = False):
         super().__init__()
-        self.layers = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = stride, bias = False, dilation = dilation),
-            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
-            nn.ReLU(inplace = True),
-            nn.Conv2d(out_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = 1, bias = False, dilation = dilation),
-            nn.InstanceNorm2d(out_channels, affine = True) if wgan else nn.BatchNorm2d(mid_channels),
-            nn.ReLU(inplace = True)
-        )
+        if wgan:
+            self.layers = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = stride, bias = False, dilation = dilation),
+                nn.ReLU(inplace = True),
+                nn.Conv2d(out_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = 1, bias = False, dilation = dilation),
+                nn.ReLU(inplace = True)
+            )
+        else:
+            self.layers = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = stride, bias = False, dilation = dilation),
+                nn.BatchNorm2d(mid_channels),
+                nn.ReLU(inplace = True),
+                nn.Conv2d(out_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = 1, bias = False, dilation = dilation),
+                nn.BatchNorm2d(mid_channels),
+                nn.ReLU(inplace = True)
+            )
         self.indentity_map = nn.Conv2d(in_channels, out_channels, kernel_size, stride = stride, padding = 'same', dilation = dilation)
         self.relu = nn.ReLU(inplace = True)
         if drop_out > 0:
