@@ -99,10 +99,11 @@ class Discriminator(nn.Module):
         def critic_block(in_filters, out_filters, normalization = True, stride = 2, kernel_size = 4):
             layers = [nn.Conv2d(in_filters, out_filters, kernel_size = kernel_size, stride = stride, padding = 1)]
             if normalization:
-                layers.append(nn.InstanceNorm2d(out_filters, affine = True))
+                layers.append(nn.InstanceNorm2d(out_filters))
             layers.append(nn.LeakyReLU(0.2, inplace = True))
             return layers
-        self.ds0 = nn.Sequential(*critic_block(in_channels, 16, True, 1, 3))
+        # we don't have color channles so I guess instance normalization is not a good idea in this first layer
+        self.ds0 = nn.Sequential(*critic_block(in_channels, 16, False, 1, 3))
         self.ds2 = nn.Sequential(
             *critic_block(16, 32, True, 2, 4),
             *critic_block(32, 32, True, 1, 3),)
@@ -118,7 +119,12 @@ class Discriminator(nn.Module):
         self.ds32 = nn.Sequential(
             *critic_block(256, 512, True, 2, 4),
             *critic_block(512, 512, True, 1, 3),)
-        self.outc = nn.Sequential(*critic_block(512, 1, False, 1, 3))
+        self.ds64 = nn.Sequential(  
+            *critic_block(512, 1024, True, 2, 4),
+            *critic_block(1024, 1024, True, 1, 3),)
+        # and the reason we don't use the IN in the last layer is just because we only output 1 channel
+        # which doesn't allow us to perform IN normalization
+        self.outc = nn.Sequential(*critic_block(1024, 1, False, 1, 3))
 
         # self.model = nn.Sequential(
         #     *critic_block(in_channels, 16, False, 1, 3),
@@ -151,6 +157,7 @@ class Discriminator(nn.Module):
         f_ds8 = self.ds8(f_ds4)
         f_ds16 = self.ds16(f_ds8)
         f_ds32 = self.ds32(f_ds16)
-        outc = self.outc(f_ds32)
+        f_ds64 = self.ds64(f_ds32)
+        outc = self.outc(f_ds64)
         # output = self.model(img)
         return outc, (f_ds0, f_ds2, f_ds4, f_ds8, f_ds16, f_ds32)

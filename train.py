@@ -333,28 +333,41 @@ def train_net(
                     _, f_real = dis(region, label)
 
                     # compute G loss
+                    loss_G_all = 0
                     optimizer_gen.zero_grad()
-                    loss_F = 0
-                    for i in range(len(f_real)):
-                        loss_F += criterion(f_real[i], f_fake[i])
                     loss_G = -torch.mean(dis_fake)
-                    loss_diff = F.mse_loss(region, gen_fake)
-                    loss_G_all = loss_F + 0.01 * loss_G + loss_diff
+                    loss_G_all += 0.01 * loss_G
+                    if args.diff:
+                        loss_diff = F.mse_loss(region, gen_fake)
+                        loss_G_all += loss_diff
+                    if args.fl:
+                        loss_F = 0
+                        for i in range(len(f_real)):
+                            loss_F += criterion(f_real[i], f_fake[i])
+                        loss_G_all = loss_F + 0.01 * loss_G + loss_diff
 
                     # back propagate G
                     loss_G_all.backward()
                     optimizer_gen.step()
 
                     # record to console
-                    pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f, GP:%.4f, Diff:%.4f"%(epoch, 
-                        start_epoch + epochs, loss_G.item(), loss_D.item(), loss_F.item(), gp.item(), loss_diff.item()))
+                    str_out = "Epoch:%d/%d, G:%.4f, D:%.4f, GP:%.4f"%(epoch, 
+                        start_epoch + epochs, loss_G.item(), loss_D.item(), gp.item())
+                    if args.fl:
+                        str_out += ", Feature:%.4f"%(loss_F.item())
+                    if args.diff:
+                        str_out += ", Diff:%.4f"%(loss_diff.item())
+                    pbar.set_description(str_out)
                 
                 # record to wandb
                 if global_step % 350 == 0 and args.log:
                     wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
                     wandb.log({'DLoss:': loss_D.item()}, step = global_step)
                     wandb.log({'Gradient Penalty:': gp.item()}, step = global_step) 
-                    wandb.log({'Reconstruction Loss:': loss_F.item()}, step = global_step) 
+                    if args.fl:
+                        wandb.log({'Feature Loss:': loss_F.item()}, step = global_step) 
+                    if args.diff:
+                        wandb.log({'Diff Loss:': loss_diff.item()}, step = global_step) 
                 
                 # visualize prediction
                 if global_step % 1050 == 0:
@@ -668,6 +681,8 @@ def get_args():
     parser.add_argument('--line_only', action = 'store_true', help = 'input line drawing instead of line drawing + flat layer')
     parser.add_argument('--base0', action = 'store_true', help = 'switch to the previous focal loss function')
     parser.add_argument('--wgan', action="store_true", help='enable wgan for training')
+    parser.add_argument('--fl', action="store_true", help='enable feature loss for wgan training')
+    parser.add_argument('--diff', action="store_true", help='enable mse loss for wgan training')
 
     return parser.parse_args()
 
