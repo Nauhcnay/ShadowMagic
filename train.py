@@ -328,7 +328,8 @@ def train_net(
 
                 if global_step % args.gstep == 0:
                     # forward G
-                    dis_fake, f_fake = dis(gen(imgs, label), label)
+                    gen_fake = gen(imgs, label)
+                    dis_fake, f_fake = dis(gen_fake, label)
                     _, f_real = dis(region, label)
 
                     # compute G loss
@@ -337,15 +338,16 @@ def train_net(
                     for i in range(len(f_real)):
                         loss_F += criterion(f_real[i], f_fake[i])
                     loss_G = -torch.mean(dis_fake)
-                    loss_G_all = loss_F + 0.01 * loss_G
+                    loss_diff = F.mse_loss(region, gen_fake)
+                    loss_G_all = loss_F + 0.01 * loss_G + loss_diff
 
                     # back propagate G
                     loss_G_all.backward()
                     optimizer_gen.step()
 
                     # record to console
-                    pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f, GP:%.4f"%(epoch, 
-                        start_epoch + epochs, loss_G.item(), loss_D.item(), loss_F.item(), gp.item()))
+                    pbar.set_description("Epoch:%d/%d, G:%.4f, D:%.4f, Rec:%.4f, GP:%.4f, Diff:%.4f"%(epoch, 
+                        start_epoch + epochs, loss_G.item(), loss_D.item(), loss_F.item(), gp.item(), loss_diff.item()))
                 
                 # record to wandb
                 if global_step % 350 == 0 and args.log:
