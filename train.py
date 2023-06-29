@@ -311,6 +311,7 @@ def train_net(
 
             if args.wgan:
                 assert args.l1 or args.l2
+                
                 '''
                 # forward D
                 optimizer_dis.zero_grad()
@@ -327,22 +328,23 @@ def train_net(
                 loss_D_all.backward()
                 optimizer_dis.step()
                 '''
-
+                
                 if global_step % args.gstep == 0:
                     # forward G
                     gen_fake = gen(imgs, label)
-                    # dis_fake, f_fake = dis(gen_fake, label)
-                    # _, f_real = dis(region, label)
+                    # with torch.no_grad():
+                    #     dis_fake, f_fake = dis(gen_fake, label)
+                    #     _, f_real = dis(region, label)
 
                     # compute G loss
                     loss_G_all = 0
                     optimizer_gen.zero_grad()
                     # loss_G = -torch.mean(dis_fake)
-                    # loss_G_all += 0.01 * loss_G
+                    # loss_G_all += 0.0001 * loss_G
                     if args.diff:
                         loss_diff_map = torch.abs(region - gen_fake)
                         if args.mask:
-                            weights = [1, 1]
+                            weights = [1, 0.1]
                             masks = [region_mask, ~region_mask]
                             loss_diff = 0
                             for i in range(len(weights)):
@@ -356,7 +358,7 @@ def train_net(
                         loss_F = 0
                         for i in range(len(f_real)):
                             loss_F += criterion(f_real[i], f_fake[i])
-                        loss_G_all += loss_F
+                        loss_G_all += 0.1 * loss_F
 
                     # back propagate G
                     loss_G_all.backward()
@@ -374,9 +376,9 @@ def train_net(
                 
                 # record to wandb
                 if global_step % 350 == 0 and args.log:
-                    # wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
-                    # wandb.log({'DLoss:': loss_D.item()}, step = global_step)
-                    # wandb.log({'Gradient Penalty:': gp.item()}, step = global_step) 
+                    wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
+                    wandb.log({'DLoss:': loss_D.item()}, step = global_step)
+                    wandb.log({'Gradient Penalty:': gp.item()}, step = global_step) 
                     if args.fl:
                         wandb.log({'Feature Loss:': loss_F.item()}, step = global_step) 
                     if args.diff:
