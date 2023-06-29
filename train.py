@@ -328,7 +328,7 @@ def train_net(
                 loss_D_all.backward()
                 optimizer_dis.step()
                 '''
-                
+
                 if global_step % args.gstep == 0:
                     # forward G
                     gen_fake = gen(imgs, label)
@@ -721,7 +721,8 @@ if __name__ == '__main__':
     logging.info(f'Using device {device}')
 
     if args.wgan:
-        gen = Generator(in_channels= 1 if args.line_only else 3, out_channels=1, drop_out = args.do, attention = args.att)
+        gen = UNet(in_channels= 1 if args.line_only else 3, out_channels=1, bilinear=True, l1=True, attention = args.att, wgan = True)
+        # gen = Generator(in_channels= 1 if args.line_only else 3, out_channels=1, drop_out = args.do, attention = args.att)
         dis = Discriminator(in_channels = 2)
     else:
         net = UNet(in_channels= 1 if args.line_only else 3, out_channels=1, bilinear=True, l1=args.l1, drop_out = args.do, attention = args.att)

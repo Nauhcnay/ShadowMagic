@@ -94,19 +94,19 @@ class DoubleDilatedConv(nn.Module):
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
-    def __init__(self, in_channels, out_channels, attention = False):
+    def __init__(self, in_channels, out_channels, attention = False, wgan = False):
         super().__init__() 
         if attention:   
             self.maxpool_conv = nn.Sequential(
                 nn.MaxPool2d(2),
-                DoubleConv(in_channels, out_channels),
+                DoubleConv(in_channels, out_channels, wgan = wgan),
                 LayerAttention(out_channels),
                 SpatialAttention(out_channels)
             )
         else:
             self.maxpool_conv = nn.Sequential(
                 nn.MaxPool2d(2),
-                DoubleConv(in_channels, out_channels)
+                DoubleConv(in_channels, out_channels, wgan=wgan)
             )
 
     def forward(self, x):
@@ -115,11 +115,11 @@ class Down(nn.Module):
 class DownDilated(nn.Module):
     """Downscaling with maxpool then double conv"""
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, wgan = False):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(2),
-            DoubleDilatedConv(in_channels, out_channels)
+            DoubleDilatedConv(in_channels, out_channels, wgan = wgan)
         )
 
     def forward(self, x):
@@ -129,16 +129,16 @@ class DownDilated(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels, bilinear=True, wgan = False):
         super().__init__()
 
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
+            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2, wgan = wgan)
         else:
             self.up = nn.ConvTranspose2d(in_channels , in_channels // 2, kernel_size=2, stride=2)
-            self.conv = DoubleConv(in_channels, out_channels)
+            self.conv = DoubleConv(in_channels, out_channels, wgan = wgan)
 
 
     def forward(self, x1, x2):
