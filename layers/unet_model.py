@@ -63,7 +63,7 @@ class UNet(nn.Module):
 class Generator(nn.Module):
     def __init__(self, in_channels, out_channels, drop_out = -1, attention = False):
         super().__init__()
-        self.inc = ResBlock(in_channels, 64, drop_out = drop_out, wgan = True, no_norm = True)
+        self.inc = ResBlock(in_channels, 64, drop_out = drop_out, wgan = True)
         self.down1 = DownResNet(64, 128, attention, drop_out = drop_out, wgan = True)
         self.down2 = DownResNet(128, 256, attention, drop_out = drop_out, wgan = True)
         self.down3 = DownResNet(256, 512, attention, drop_out = drop_out, wgan = True)
@@ -103,7 +103,7 @@ class Discriminator(nn.Module):
             layers.append(nn.LeakyReLU(0.2, inplace = True))
             return layers
         # we don't have color channles so I guess instance normalization is not a good idea in this first layer
-        self.ds0 = nn.Sequential(*critic_block(in_channels, 16, False, 1, 3))
+        self.ds0 = nn.Sequential(*critic_block(in_channels, 16, True, 1, 3))
         self.ds2 = nn.Sequential(
             *critic_block(16, 32, True, 2, 4),
             *critic_block(32, 32, True, 1, 3),)

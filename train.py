@@ -311,6 +311,7 @@ def train_net(
 
             if args.wgan:
                 assert args.l1 or args.l2
+                '''
                 # forward D
                 optimizer_dis.zero_grad()
                 gen_fake = gen(imgs, label)
@@ -325,20 +326,21 @@ def train_net(
                 # back propagate D
                 loss_D_all.backward()
                 optimizer_dis.step()
+                '''
 
                 if global_step % args.gstep == 0:
                     # forward G
                     gen_fake = gen(imgs, label)
-                    dis_fake, f_fake = dis(gen_fake, label)
-                    _, f_real = dis(region, label)
+                    # dis_fake, f_fake = dis(gen_fake, label)
+                    # _, f_real = dis(region, label)
 
                     # compute G loss
                     loss_G_all = 0
                     optimizer_gen.zero_grad()
-                    loss_G = -torch.mean(dis_fake)
-                    loss_G_all += 0.01 * loss_G
+                    # loss_G = -torch.mean(dis_fake)
+                    # loss_G_all += 0.01 * loss_G
                     if args.diff:
-                        loss_diff = F.mse_loss(region, gen_fake)
+                        loss_diff = F.l1_loss(region, gen_fake)
                         loss_G_all += loss_diff
                     if args.fl:
                         loss_F = 0
@@ -351,8 +353,9 @@ def train_net(
                     optimizer_gen.step()
 
                     # record to console
-                    str_out = "Epoch:%d/%d, G:%.4f, D:%.4f, GP:%.4f"%(epoch, 
-                        start_epoch + epochs, loss_G.item(), loss_D.item(), gp.item())
+                    # str_out = "Epoch:%d/%d, G:%.4f, D:%.4f, GP:%.4f"%(epoch, 
+                    #     start_epoch + epochs, loss_G.item(), loss_D.item(), gp.item())
+                    str_out = "Epoch:%d/%d"%(epoch, start_epoch + epochs)
                     if args.fl:
                         str_out += ", Feature:%.4f"%(loss_F.item())
                     if args.diff:
@@ -361,9 +364,9 @@ def train_net(
                 
                 # record to wandb
                 if global_step % 350 == 0 and args.log:
-                    wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
-                    wandb.log({'DLoss:': loss_D.item()}, step = global_step)
-                    wandb.log({'Gradient Penalty:': gp.item()}, step = global_step) 
+                    # wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
+                    # wandb.log({'DLoss:': loss_D.item()}, step = global_step)
+                    # wandb.log({'Gradient Penalty:': gp.item()}, step = global_step) 
                     if args.fl:
                         wandb.log({'Feature Loss:': loss_F.item()}, step = global_step) 
                     if args.diff:
@@ -476,7 +479,6 @@ def train_net(
                         sample = torch.cat((imgs, gts.repeat((1, 3, 1, 1)), pred.repeat((1, 3, 1, 1)), 
                                     (pred > 0.5).repeat((1, 3, 1, 1))), dim = 0)
 
-                    
                     if os.path.exists(result_folder) is False:
                         logging.info("Creating %s"%str(result_folder))
                         os.makedirs(result_folder)
@@ -668,7 +670,7 @@ def get_args():
                         help='Load model from a .pth file')
     parser.add_argument('-r', '--resize', dest="resize", type=int, default=1024,
                         help='resize the shorter edge of the training image')
-    parser.add_argument('--gstep', dest="gstep", type=int, default=2,
+    parser.add_argument('--gstep', dest="gstep", type=int, default=1,
                         help='train G one time after every gstep of D training')
     parser.add_argument('-i', '--imgs', dest="imgs", type=str,
                         help='the path to training set', default = "./dataset")

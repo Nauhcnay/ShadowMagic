@@ -169,22 +169,15 @@ class OutConv(nn.Module):
 # thanks for https://www.kaggle.com/code/salimhammadi07/pix2pix-image-colorization-with-conditional-wgan
 # this is a conditional discriminator
 class ResBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride = 1, kernel_size = 3, drop_out = False, dilation = 1, wgan = False, no_norm = False):
+    def __init__(self, in_channels, out_channels, stride = 1, kernel_size = 3, drop_out = False, dilation = 1, wgan = False):
         super().__init__()
-        if wgan and no_norm == False:
+        if wgan:
             self.layers = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = stride, bias = False, dilation = dilation),
                 nn.InstanceNorm2d(out_channels),
                 nn.ReLU(inplace = True),
                 nn.Conv2d(out_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = 1, bias = False, dilation = dilation),
                 nn.InstanceNorm2d(out_channels),
-                nn.ReLU(inplace = True)
-            )
-        elif wgan and no_norm:
-            self.layers = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = stride, bias = False, dilation = dilation),
-                nn.ReLU(inplace = True),
-                nn.Conv2d(out_channels, out_channels, kernel_size = kernel_size, padding = 'same', stride = 1, bias = False, dilation = dilation),
                 nn.ReLU(inplace = True)
             )
         else:
