@@ -312,7 +312,6 @@ def train_net(
             if args.wgan:
                 assert args.l1 or args.l2
                 
-                '''
                 # forward D
                 optimizer_dis.zero_grad()
                 gen_fake = gen(imgs, label)
@@ -327,20 +326,19 @@ def train_net(
                 # back propagate D
                 loss_D_all.backward()
                 optimizer_dis.step()
-                '''
 
                 if global_step % args.gstep == 0:
                     # forward G
                     gen_fake = gen(imgs, label)
-                    # with torch.no_grad():
-                    #     dis_fake, f_fake = dis(gen_fake, label)
-                    #     _, f_real = dis(region, label)
+                    with torch.no_grad():
+                        dis_fake, f_fake = dis(gen_fake, label)
+                        _, f_real = dis(region, label)
 
                     # compute G loss
                     loss_G_all = 0
                     optimizer_gen.zero_grad()
-                    # loss_G = -torch.mean(dis_fake)
-                    # loss_G_all += 0.0001 * loss_G
+                    loss_G = -torch.mean(dis_fake)
+                    loss_G_all += 0.01 * loss_G
                     if args.diff:
                         loss_diff_map = torch.abs(region - gen_fake)
                         if args.mask:
@@ -365,9 +363,9 @@ def train_net(
                     optimizer_gen.step()
 
                     # record to console
-                    # str_out = "Epoch:%d/%d, G:%.4f, D:%.4f, GP:%.4f"%(epoch, 
-                    #     start_epoch + epochs, loss_G.item(), loss_D.item(), gp.item())
-                    str_out = "Epoch:%d/%d"%(epoch, start_epoch + epochs)
+                    str_out = "Epoch:%d/%d, G:%.4f, D:%.4f, GP:%.4f"%(epoch, 
+                        start_epoch + epochs, loss_G.item(), loss_D.item(), gp.item())
+                    # str_out = "Epoch:%d/%d"%(epoch, start_epoch + epochs)
                     if args.fl:
                         str_out += ", Feature:%.4f"%(loss_F.item())
                     if args.diff:

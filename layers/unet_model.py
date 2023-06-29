@@ -107,25 +107,25 @@ class Discriminator(nn.Module):
             layers.append(nn.LeakyReLU(0.2, inplace = True))
             return layers
         # we don't have color channles so I guess instance normalization is not a good idea in this first layer
-        self.ds0 = nn.Sequential(*critic_block(in_channels, 16, False, 1, 3))
+        self.ds0 = nn.Sequential(*critic_block(in_channels, 16, True, 1, 3))
         self.ds2 = nn.Sequential(
-            *critic_block(16, 32, False, 2, 4),
-            *critic_block(32, 32, False, 1, 3),)
+            *critic_block(16, 32, True, 2, 4),
+            *critic_block(32, 32, True, 1, 3),)
         self.ds4 = nn.Sequential(
-            *critic_block(32, 64, False, 2, 4),
-            *critic_block(64, 64, False, 1, 3),)
+            *critic_block(32, 64, True, 2, 4),
+            *critic_block(64, 64, True, 1, 3),)
         self.ds8 = nn.Sequential(
-            *critic_block(64, 128, False, 2, 4),
-            *critic_block(128, 128, False, 1, 3),)
+            *critic_block(64, 128, True, 2, 4),
+            *critic_block(128, 128, True, 1, 3),)
         self.ds16 = nn.Sequential(
-            *critic_block(128, 256, False, 2, 4),
-            *critic_block(256, 256, False, 1, 3),)
+            *critic_block(128, 256, True, 2, 4),
+            *critic_block(256, 256, True, 1, 3),)
         self.ds32 = nn.Sequential(
-            *critic_block(256, 512, False, 2, 4),
-            *critic_block(512, 512, False, 1, 3),)
+            *critic_block(256, 512, True, 2, 4),
+            *critic_block(512, 512, True, 1, 3),)
         self.ds64 = nn.Sequential(  
-            *critic_block(512, 1024, False, 2, 4),
-            *critic_block(1024, 1024, False, 1, 3),)
+            *critic_block(512, 1024, True, 2, 4),
+            *critic_block(1024, 1024, True, 1, 3),)
         # and the reason we don't use the IN in the last layer is just because we only output 1 channel
         # which doesn't allow us to perform IN normalization
         self.outc = nn.Sequential(*critic_block(1024, 1, False, 1, 3))
