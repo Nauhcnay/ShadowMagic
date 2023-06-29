@@ -376,8 +376,8 @@ def train_net(
                 
                 # record to wandb
                 if global_step % 350 == 0 and args.log:
-                    wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
-                    wandb.log({'DLoss:': loss_D.item()}, step = global_step)
+                    # wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
+                    # wandb.log({'DLoss:': loss_D.item()}, step = global_step)
                     wandb.log({'Gradient Penalty:': gp.item()}, step = global_step) 
                     if args.fl:
                         wandb.log({'Feature Loss:': loss_F.item()}, step = global_step) 
