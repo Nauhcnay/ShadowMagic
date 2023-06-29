@@ -160,7 +160,8 @@ class BasicDataset(Dataset):
         edge_np = to_edge(shad_color_np)
         skel_np = to_skeleton(edge_np)
         region_np = to_region_map(edge_np, skel_np)
-        
+        region_mask = np.logical_or(region_np > 230, region_np<25)
+
         # clip values
         img_np = img_np.clip(0, 255)
         shad_np = shad_np.clip(0, 255)
@@ -182,13 +183,14 @@ class BasicDataset(Dataset):
             # shad_d4x = self.to_tensor(1 - shad_np_d4x / 255, False)
             # shad_d8x = self.to_tensor(1 - shad_np_d8x / 255, False)
         flat_mask = self.to_tensor(flat_mask_np / 255, False)
+        region_mask = self.to_tensor(region_mask, False)
         shade_edge = self.to_tensor(shade_edge_np / 255, False)
         # line = line * shade_edge
         label = torch.Tensor([label])
         assert line.shape == shad.shape
         # it returns tensor at last
         # return img, line, (shad, shad_d2x, shad_d4x, shad_d8x), flat_mask, shade_edge, region, label
-        return img, line, shad, flat_mask, shade_edge, region, label
+        return img, line, shad, region_mask, shade_edge, region, label
     
     def down_sample(self, img):
         dw = int(img.shape[1] / 2)

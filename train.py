@@ -295,7 +295,7 @@ def train_net(
         else:
             net.train()
         # for imgs, lines, gt_list, flat_mask, shade_edge, region, label in pbar:
-        for imgs, lines, gts, flat_mask, shade_edge, region, label in pbar:
+        for imgs, lines, gts, region_mask, shade_edge, region, label in pbar:
             # gts, _, _, _ = gts_list
             if args.line_only:
                 imgs = lines
@@ -304,7 +304,7 @@ def train_net(
             # gts_d2x = gts_d2x.to(device=device, dtype=torch.float32)
             # gts_d4x = gts_d4x.to(device=device, dtype=torch.float32)
             # gts_d8x = gts_d8x.to(device=device, dtype=torch.float32)
-            flat_mask = flat_mask.to(device=device, dtype=torch.float32)
+            region_mask = region_mask.to(device=device, dtype=torch.bool)
             shade_edge = shade_edge.to(device=device, dtype=torch.float32)
             region = region.to(device=device, dtype=torch.float32)
             label = label.to(device=device, dtype=torch.float32)
@@ -340,7 +340,17 @@ def train_net(
                     # loss_G = -torch.mean(dis_fake)
                     # loss_G_all += 0.01 * loss_G
                     if args.diff:
-                        loss_diff = F.l1_loss(region, gen_fake)
+                        loss_diff_map = torch.abs(region - gen_fake)
+                        if args.mask:
+                            weights = [1, 1]
+                            masks = [region_mask, ~region_mask]
+                            loss_diff = 0
+                            for i in range(len(weights)):
+                                if masks[i].sum() > 0:
+                                    loss_diff += loss_diff_map[masks[i]].mean()
+                            loss_diff /= 2
+                        else:
+                            loss_diff = loss_diff_map.mean()
                         loss_G_all += loss_diff
                     if args.fl:
                         loss_F = 0
@@ -420,7 +430,7 @@ def train_net(
                     loss_l1 = criterion(pred, region)
                     loss += loss_l1
                 else:
-                    loss_bce = criterion(pred, gts, flat_mask)
+                    loss_bce = criterion(pred, gts, region_mask)
                     loss = loss + loss_bce
                 if ap and l1_loss == False:
                     loss_ap = anisotropic_penalty(pred, shade_edge, size = aps)
@@ -468,7 +478,7 @@ def train_net(
                         pred = denormalize(pred).repeat((1,3,1,1))
                     else:
                         pred = torch.sigmoid(pred)
-                        pred[~flat_mask.bool()] = 0
+                        pred[~region_mask.bool()] = 0
                         # pred = T.functional.equalize((pred*255).to(torch.uint8)).to(torch.float32) / 255
                         # add advanced filter
                     if l1_loss or args.l2:
@@ -685,6 +695,7 @@ def get_args():
     parser.add_argument('--wgan', action="store_true", help='enable wgan for training')
     parser.add_argument('--fl', action="store_true", help='enable feature loss for wgan training')
     parser.add_argument('--diff', action="store_true", help='enable mse loss for wgan training')
+    parser.add_argument('--mask', action="store_true", help='enable masked l1 loss for wgan training')
 
     return parser.parse_args()
 
