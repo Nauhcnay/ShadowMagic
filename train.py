@@ -342,7 +342,7 @@ def train_net(
                     if args.diff:
                         loss_diff_map = torch.abs(region - gen_fake)
                         if args.mask:
-                            weights = [1, 0.1]
+                            weights = [1, 1]
                             masks = [region_mask, ~region_mask]
                             loss_diff = 0
                             for i in range(len(weights)):
@@ -356,7 +356,7 @@ def train_net(
                         loss_F = 0
                         for i in range(len(f_real)):
                             loss_F += criterion(f_real[i], f_fake[i])
-                        loss_G_all += 0.1 * loss_F
+                        loss_G_all += loss_F
 
                     # back propagate G
                     loss_G_all.backward()
@@ -374,9 +374,9 @@ def train_net(
                 
                 # record to wandb
                 if global_step % 350 == 0 and args.log:
-                    # wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
-                    # wandb.log({'DLoss:': loss_D.item()}, step = global_step)
-                    # wandb.log({'Gradient Penalty:': gp.item()}, step = global_step) 
+                    wandb.log({'GLoss:': loss_G.item()}, step = global_step) 
+                    wandb.log({'DLoss:': loss_D.item()}, step = global_step)
+                    wandb.log({'Gradient Penalty:': gp.item()}, step = global_step) 
                     if args.fl:
                         wandb.log({'Feature Loss:': loss_F.item()}, step = global_step) 
                     if args.diff:
