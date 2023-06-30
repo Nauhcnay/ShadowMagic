@@ -330,9 +330,8 @@ def train_net(
                 if global_step % args.gstep == 0:
                     # forward G
                     gen_fake = gen(imgs, label)
-                    with torch.no_grad():
-                        dis_fake, f_fake = dis(gen_fake, label)
-                        _, f_real = dis(region, label)
+                    dis_fake, f_fake = dis(gen_fake, label)
+                    _, f_real = dis(region, label)
 
                     # compute G loss
                     loss_G_all = 0
