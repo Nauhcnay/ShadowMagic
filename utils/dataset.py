@@ -160,7 +160,8 @@ class BasicDataset(Dataset):
         edge_np = to_edge(shad_color_np)
         skel_np = to_skeleton(edge_np)
         region_np = to_region_map(edge_np, skel_np)
-        region_mask = np.logical_or(region_np > 230, region_np<25)
+        # region_mask = np.logical_or(region_np > 230, region_np<25)
+        region_mask = region_np < 50
 
         # clip values
         img_np = img_np.clip(0, 255)
