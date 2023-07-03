@@ -242,13 +242,15 @@ def train_net(
     
     if ckpt is not None:
         start_epoch = ckpt['epoch']
-        net.load_state_dict(ckpt['model_state_dict'])
-        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
-        if args.sch:
-            scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = epochs, last_epoch = start_epoch)
-            scheduler.load_state_dict(ckpt['lr_scheduler_state_dict'])
-        # model_folder = args.model_folder
-        # result_folder = args.result_folder
+        if args.wgan:
+            gen.load_state_dict(ckpt['model_state_dict_g'])
+            dis.load_state_dict(ckpt['model_state_dict_d'])
+            optimizer_gen.load_state_dict(ckpt['optimizer_state_dict_gen'])
+            optimizer_dis.load_state_dict(ckpt['optimizer_state_dict_dis'])
+        else:
+            net.load_state_dict(ckpt['model_state_dict'])
+            optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        
     else:
         start_epoch = 0
         # args.model_folder = model_folder
@@ -710,7 +712,9 @@ if __name__ == '__main__':
     if args.load:
         model_load = args.load
         ckpt = torch.load(args.load, map_location='cuda:0')
-        args = ckpt['param']
+        args_ = ckpt['param']
+        args_.lr = args.lr
+        args = args_
     else:
         ckpt = None
 
