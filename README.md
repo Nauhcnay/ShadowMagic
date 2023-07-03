@@ -70,3 +70,13 @@ from misc import to_hint_layer
 # hint, numpy array as hint layer image
 hint = to_hint_layer(flat, label)
 ```
+For refining the flat layer, you can call the function in preprocess.py, here is a simple example:
+```
+from preprocess import flat_refine
+from PIL import Image
+
+flat = Image.open(PATH_TO_FLAT_LAYER)
+line = Image.open(PATH_TO_LINE_LAYER) # this is necessary for the refinement, we need the line drawing to align the falt region's boundary
+flat, _ = flat_refine(flat, line)
+Image.fromarray(flat).save(PATH_TO_REFINED_FLAT_LAYER)
+```
