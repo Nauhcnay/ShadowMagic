@@ -337,11 +337,11 @@ def train_net(
                     loss_G_all = 0
                     optimizer_gen.zero_grad()
                     loss_G = -torch.mean(dis_fake)
-                    loss_G_all += 0.01 * loss_G
+                    loss_G_all += 0.005 * loss_G
                     if args.diff:
                         loss_diff_map = torch.abs(region - gen_fake)
                         if args.mask:
-                            weights = [1, 1]
+                            weights = [1, 0.5]
                             masks = [region_mask, ~region_mask]
                             loss_diff = 0
                             for i in range(len(weights)):
