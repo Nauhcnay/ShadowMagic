@@ -7,7 +7,8 @@ from .unet_parts import *
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels, out_channels, bilinear=True, l1 = False, drop_out = False, attention = False, wgan = False):
+    def __init__(self, in_channels, out_channels, bilinear=True, l1 = False, drop_out = False, 
+        attention = False, wgan = False, activation = None):
         super(UNet, self).__init__()
         self.wgan = wgan
         self.in_channels = in_channels
@@ -17,21 +18,21 @@ class UNet(nn.Module):
             self.drop_out = nn.Dropout(0.2)
         else:
             self.drop_out = None
-        self.inc = DoubleConv(in_channels, 64, wgan = wgan)
-        self.down1 = Down(64, 128, attention, wgan = wgan)
-        self.down2 = Down(128, 256, attention, wgan = wgan)
-        self.down3 = Down(256, 512, attention, wgan = wgan)
+        self.inc = DoubleConv(in_channels, 64, wgan = wgan, activation = activation)
+        self.down1 = Down(64, 128, attention, wgan = wgan, activation = activation)
+        self.down2 = Down(128, 256, attention, wgan = wgan, activation = activation)
+        self.down3 = Down(256, 512, attention, wgan = wgan, activation = activation)
         factor = 2 if bilinear else 1
-        self.down4 = DownDilated(513, 1024 // factor, wgan = wgan)
-        self.bottle1 = DoubleDilatedConv(512, 512, wgan = wgan)
-        self.bottle2 = DoubleDilatedConv(512, 512, wgan = wgan)
-        self.up1 = Up(1024, 512 // factor, bilinear, wgan = wgan)
+        self.down4 = DownDilated(513, 1024 // factor, wgan = wgan, activation = activation)
+        self.bottle1 = DoubleDilatedConv(512, 512, wgan = wgan, activation = activation)
+        self.bottle2 = DoubleDilatedConv(512, 512, wgan = wgan, activation = activation)
+        self.up1 = Up(1024, 512 // factor, bilinear, wgan = wgan, activation = activation)
         self.out1 = OutConv(512 //factor, out_channels)
-        self.up2 = Up(512, 256 // factor, bilinear, wgan = wgan)
+        self.up2 = Up(512, 256 // factor, bilinear, wgan = wgan, activation = activation)
         self.out2 = OutConv(256 //factor, out_channels)
-        self.up3 = Up(256, 128 // factor, bilinear, wgan = wgan)
+        self.up3 = Up(256, 128 // factor, bilinear, wgan = wgan, activation = activation)
         self.out3 = OutConv(128 //factor, out_channels)
-        self.up4 = Up(128, 64, bilinear, wgan = wgan)
+        self.up4 = Up(128, 64, bilinear, wgan = wgan, activation = activation)
         self.outc = OutConv(64, out_channels)
 
     # we need to add a label to the featrue map so that could cat to the  
@@ -65,20 +66,20 @@ class UNet(nn.Module):
             return logits, x_down_2x, x_down_4x, x_down_8x
 
 class Generator(nn.Module):
-    def __init__(self, in_channels, out_channels, drop_out = -1, attention = False):
+    def __init__(self, in_channels, out_channels, drop_out = -1, attention = False, activation = None):
         super().__init__()
-        self.inc = ResBlock(in_channels, 64, drop_out = drop_out, wgan = False)
-        self.down1 = DownResNet(64, 128, attention, drop_out = drop_out, wgan = False)
-        self.down2 = DownResNet(128, 256, attention, drop_out = drop_out, wgan = False)
-        self.down3 = DownResNet(256, 512, attention, drop_out = drop_out, wgan = False)
-        self.down4 = DownResNet(513, 512, attention, drop_out = drop_out, wgan = False)
-        self.bottle1 = DilatedConvResNet(512, 512, wgan = False)
-        self.bottle2 = DilatedConvResNet(512, 512, wgan = False)
-        self.up1 = UpResNet(1024, 256, wgan = False)
-        self.up2 = UpResNet(512, 128, wgan = False)
-        self.up3 = UpResNet(256, 64, wgan = False)
-        self.up4 = UpResNet(128, 64, wgan = False)
-        self.outc = ResBlock(64, out_channels, kernel_size = 1, wgan = False)
+        self.inc = ResBlock(in_channels, 64, drop_out = drop_out, wgan = False, activation = activation)
+        self.down1 = DownResNet(64, 128, attention, drop_out = drop_out, wgan = False, activation = activation)
+        self.down2 = DownResNet(128, 256, attention, drop_out = drop_out, wgan = False, activation = activation)
+        self.down3 = DownResNet(256, 512, attention, drop_out = drop_out, wgan = False, activation = activation)
+        self.down4 = DownResNet(513, 512, attention, drop_out = drop_out, wgan = False, activation = activation)
+        self.bottle1 = DilatedConvResNet(512, 512, wgan = False, activation = activation)
+        self.bottle2 = DilatedConvResNet(512, 512, wgan = False, activation = activation)
+        self.up1 = UpResNet(1024, 256, wgan = False, activation = activation)
+        self.up2 = UpResNet(512, 128, wgan = False, activation = activation)
+        self.up3 = UpResNet(256, 64, wgan = False, activation = activation)
+        self.up4 = UpResNet(128, 64, wgan = False, activation = activation)
+        self.outc = ResBlock(64, out_channels, kernel_size = 1, wgan = False, activation = activation)
     
     def forward(self, x, label):
         x1 = self.inc(x)

@@ -722,7 +722,9 @@ if __name__ == '__main__':
     logging.info(f'Using device {device}')
 
     if args.wgan:
-        gen = UNet(in_channels= 1 if args.line_only else 3, out_channels=1, bilinear=True, l1=True, attention = args.att, wgan = True)
+        # activation = nn.Tanh()
+        activation = None
+        gen = UNet(in_channels= 1 if args.line_only else 3, out_channels=1, bilinear=True, l1=True, attention = args.att, wgan = True, activation = activation)
         # gen = Generator(in_channels= 1 if args.line_only else 3, out_channels=1, drop_out = args.do, attention = args.att)
         dis = Discriminator(in_channels = 2)
     else:

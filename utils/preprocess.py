@@ -233,7 +233,7 @@ def int_to_color(color):
     b = int(color % 1000)
     return np.array([r, g, b, 255])
 
-def flat_refine(flat, line, second_pass = True):
+def flat_refine(flat, line = None, second_pass = True):
     ''' 
     Given: 
         flat, a numpy array as the flat png
@@ -244,10 +244,13 @@ def flat_refine(flat, line, second_pass = True):
     # convert line from rgba to bool mask
     # and interestingly, they use alpha channel as the grayscal image...
     
-    if len(line.shape) == 3:
-        line_gray = 255 - line[:,:,3]
+    if line is None:
+        line_gray = np.ones(flat.shape) * 255
     else:
-        line_gray = line
+        if len(line.shape) == 3:
+            line_gray = 255 - line[:,:,3]
+        else:
+            line_gray = line
     _, line_gray = cv2.threshold(line_gray, 127, 255, cv2.THRESH_BINARY)
     # line_gray = cv2.adaptiveThreshold(line_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
     # kernel = np.array([[0,1,0],[1,1,1],[0,1,0]]).astype(np.uint8)
