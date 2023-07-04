@@ -9,7 +9,7 @@ class SpatialAttention(nn.Module):
     def __init__(self, channels):
         super().__init__()
         self.conv = nn.Conv2d(channels, 1, kernel_size=1)
-        self.relu = nn.LeakyReLU(inplace = True)
+        self.relu = nn.LeakyReLU(0.2, inplace = True)
         self.sigmoid = nn.Sigmoid()
         
     def forward(self, x):
@@ -21,7 +21,7 @@ class LayerAttention(nn.Module):
         super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.conv = nn.Conv2d(channels, channels, kernel_size = 1)
-        self.relu = nn.LeakyReLU(inplace = True)
+        self.relu = nn.LeakyReLU(0.2, inplace = True)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
@@ -38,7 +38,7 @@ class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels, mid_channels=None, wgan = False, activation = None):
         super().__init__()
         if activation == None:
-            self.act = nn.LeakyReLU(inplace = True)
+            self.act = nn.LeakyReLU(0.2, inplace = True)
         else:
             self.act = activation
         if not mid_channels:
@@ -71,7 +71,7 @@ class DoubleDilatedConv(nn.Module):
     def __init__(self, in_channels, out_channels, mid_channels=None, wgan = False, activation = None):
         super().__init__()
         if activation == None:
-            self.act = nn.LeakyReLU(inplace = True)
+            self.act = nn.LeakyReLU(0.2, inplace = True)
         else:
             self.act = activation
         if not mid_channels:
@@ -180,7 +180,7 @@ class ResBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride = 1, kernel_size = 3, drop_out = False, dilation = 1, wgan = False, activation = None):
         super().__init__()
         if activation == None:
-            self.act = nn.LeakyReLU(inplace = True)
+            self.act = nn.LeakyReLU(0.2, inplace = True)
         else:
             self.act = activation
         if wgan:
