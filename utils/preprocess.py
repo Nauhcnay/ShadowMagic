@@ -146,9 +146,12 @@ def flat_to_fillmap(flat, second_pass = True):
     '''
     # print("Log:\tconverting flat PNG to fill map")
     h, w = flat.shape[0], flat.shape[1]
-    alpha_channel = flat[:,:,3]
     r, g, b = flat[:,:,0], flat[:,:,1], flat[:,:,2]# split to r, g, b channel
     color_channel = r * 1e6 + g * 1e3 + b
+    if flat.shape[-1] == 4:
+        alpha_channel = flat[:,:,3]
+    else:
+        alpha_channel = np.logical_or(np.logical_or(r != 255, g != 255), b != 255)
     color_channel[alpha_channel == 0] = -1
     fill = np.ones((h,w)) # assume transparent region as 0
     fill[alpha_channel == 0] = 0 # fill region starts at 2
@@ -223,8 +226,8 @@ def shadow_to_fillmap(shadow):
 def fillmap_to_color(fill, color_map=None):
     if color_map is None:
         color_map = np.random.randint(0, 255, (fill.max() + 1, 3), dtype=np.uint8)
-    r, c = np.unique(fill, return_counts = True)
-    color_map[r[np.argsort(c)[-1]]] = [255, 255, 255]
+        r, c = np.unique(fill, return_counts = True)
+        color_map[r[np.argsort(c)[-1]]] = [255, 255, 255]
     return color_map[fill], color_map
 
 def int_to_color(color):
@@ -256,8 +259,9 @@ def flat_refine(flat, line = None, second_pass = True):
     # kernel = np.array([[0,1,0],[1,1,1],[0,1,0]]).astype(np.uint8)
     # if second_pass == True:
     #     line_gray = cv2.erode(line_gray, kernel, iterations = 1) 
-    flat_a = flat[:,:,3]
-    flat[:,:,:3] = flat[:,:,:3] * np.repeat(np.expand_dims((flat_a == 255).astype(int), -1),3,-1)
+    if flat.shape[-1] == 4:
+        flat_a = flat[:,:,3]
+        flat[:,:,:3] = flat[:,:,:3] * np.repeat(np.expand_dims((flat_a == 255).astype(int), -1),3,-1)
     # convert flat to fill map
     fill, color_map = flat_to_fillmap(flat, second_pass)
     # set line drawing into the fill map
@@ -269,7 +273,7 @@ def flat_refine(flat, line = None, second_pass = True):
     #     if mask.sum() < 10:
     #         fill[mask] = 1
     fill = thinning(fill)
-    flat_refined =  fillmap_to_color(fill, color_map)
+    flat_refined, _ =  fillmap_to_color(fill, color_map)
     return flat_refined, fill
 
 def grayscale_shadow(shadow):
@@ -349,8 +353,12 @@ if __name__ == "__main__":
     
 
     '''correct shading layers'''
-    OUT_PATH = "../dataset/Natural_png_rough"
-    REFINED_PATH = "../dataset/Natural_png_rough_refined"
-    png_refine(OUT_PATH, REFINED_PATH)
+    # OUT_PATH = "../dataset/Natural_png_rough"
+    # REFINED_PATH = "../dataset/Natural_png_rough_refined"
+    # png_refine(OUT_PATH, REFINED_PATH)
 
-
+    # debug for flat region refine
+    flat = np.array(Image.open("image0111_flat.png"))
+    line = np.array(Image.open("image0111_line.png"))
+    flat_refined, _ = flat_refine(flat, line)
+    Image.fromarray(flat_refined).save("res.png")
