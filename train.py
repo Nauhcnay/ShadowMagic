@@ -433,12 +433,12 @@ def train_net(
                     loss_diff_map = torch.abs(pred - region)    
                     weights = [1, 0.1]
                     masks = [region_mask, ~region_mask]
-                    loss_diff = 0
+                    loss_l1 = 0
                     for i in range(len(weights)):
                         if masks[i].sum() > 0:
                             loss_diff += loss_diff_map[masks[i]].mean()
-                    loss_diff /= 2
-                    loss += loss_diff
+                    loss_l1 /= 2
+                    loss += loss_l1
                 else:
                     loss_bce = criterion(pred, gts, region_mask)
                     loss = loss + loss_bce
