@@ -74,9 +74,10 @@ For refining the flat layer, you can call the function in preprocess.py, here is
 ```
 from preprocess import flat_refine
 from PIL import Image
+import numpy as np
 
-flat = Image.open(PATH_TO_FLAT_LAYER)
-line = Image.open(PATH_TO_LINE_LAYER) # this is necessary for the refinement, we need the line drawing to align the falt region's boundary
+flat = np.array(Image.open(PATH_TO_FLAT_LAYER))
+line = np.array(Image.open(PATH_TO_LINE_LAYER)) # this is necessary for the refinement, we need the line drawing to align the falt region's boundary
 flat, _ = flat_refine(flat, line)
 Image.fromarray(flat).save(PATH_TO_REFINED_FLAT_LAYER)
 ```
