@@ -436,7 +436,7 @@ def train_net(
                     loss_l1 = 0
                     for i in range(len(weights)):
                         if masks[i].sum() > 0:
-                            loss_diff += loss_diff_map[masks[i]].mean()
+                            loss_l1 += loss_diff_map[masks[i]].mean()
                     loss_l1 /= 2
                     loss += loss_l1
                 else:
