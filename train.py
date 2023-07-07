@@ -518,7 +518,7 @@ def train_net(
                     
             # update the global step
             global_step += 1
-            break
+            # break
 
         if args.wgan:
             torch.save({
