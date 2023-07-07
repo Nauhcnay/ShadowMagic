@@ -518,6 +518,7 @@ def train_net(
                     
             # update the global step
             global_step += 1
+            break
 
         if args.wgan:
             torch.save({
@@ -577,12 +578,12 @@ def train_net(
                     label = label.to(device=device, dtype=torch.float32)
                     val_out = net(val_img, label)
                     
-                    if type(val_out) is list:
+                    if type(val_out) is list or type(val_out) is tuple:
                         val_pred, _, _, _  = val_out
                     else:
                         val_pred = val_out
 
-                    if l1_loss or args.l2:
+                    if args.l1 or args.l2:
                         val_bceloss += criterion(val_pred, val_region)
                         val_gt = denormalize(val_region)
                         val_pred = denormalize(val_pred)
