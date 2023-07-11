@@ -343,7 +343,7 @@ def train_net(
                     if args.diff:
                         loss_diff_map = torch.abs(region - gen_fake)
                         if args.mask:
-                            weights = [1, 0.5]
+                            weights = [1, 0.05]
                             masks = [region_mask, ~region_mask]
                             loss_diff = 0
                             for i in range(len(weights)):
