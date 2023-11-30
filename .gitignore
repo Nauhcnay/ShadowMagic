@@ -1,5 +1,12 @@
-dataset
-wandb
-results
-*.pyc
-checkpoints
+*.zip
+wgan/checkpoints
+wgan/experiments
+wgan/results
+wgan/samples
+wgan/wandb
+wgan/dataset
+diffusers/raw
+diffusers/shadowmagic_controlnet
+diffusers/shadowmagic_xl
+diffusers/pretrained
+

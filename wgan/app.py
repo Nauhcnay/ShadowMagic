@@ -19,6 +19,8 @@ from sklearn.cluster import DBSCAN, MeanShift
 from skimage.segmentation import felzenszwalb, mark_boundaries
 from cv2.ximgproc import guidedFilter
 from utils.misc import hist_equ
+from utils.preprocess import fillmap_to_color
+from utils.regions import get_regions
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -28,8 +30,14 @@ net = None
 def init_model(model_path):
     log.info('Using device %s'%device)
     global net
-    net = UNet(in_channels = 3, out_channels = 1, bilinear = True)
-    net.load_state_dict(torch.load(model_path, map_location=device))
+    ckpt = torch.load(model_path, map_location='cuda:0')
+    args = ckpt['param']
+    net = UNet(in_channels= 1 if args.line_only else 3, out_channels=1, bilinear=True, l1=True, attention = args.att, wgan = args.wgan)
+    # net = UNet(in_channels = 3, out_channels = 1, bilinear = True)
+    if args.wgan:
+        net.load_state_dict(ckpt["model_state_dict_g"])
+    else:
+        net.load_state_dict(ckpt["model_state_dict"])
     net.to(device)
     log.info('Model loaded from %s'%model_path)
 
@@ -63,8 +71,11 @@ def init_from_args(line, size, direction = None):
 def shadowing(img, label):
     net.eval()
     with torch.no_grad():
-        pre, _, _, _ = net(img, label)
-        pre = torch.sigmoid(pre)
+        pre = net(img, label)
+        try:
+            pre.shape
+        except:
+            pre, _, _, _ = pre
         pre = pre.detach().cpu().numpy().squeeze()
     torch.cuda.empty_cache()
     return pre
@@ -77,7 +88,7 @@ def norm_shadow(shadow):
 def overlay_shadow(img, shadow):
     if len(shadow.shape) == 3:
         shadow = shadow.mean(axis = -1)
-    return (img * np.expand_dims(shadow, axis = -1)).astype(np.uint8) 
+    return (img * shadow).astype(np.uint8) 
 
 def thres_norm_shadowmap(pre, thres = 0.5):
     pre = (pre <= thres).astype(float)
@@ -100,29 +111,36 @@ def lauch_gradio():
                 img_pre = gr.Image()
                 img_heatmap = gr.Image()
                 shadow_thres = gr.Slider(minimum = 0, maximum = 1, value = 0.5, step = 0.01, label = "Shadow Level")
-                adjust_thres_button = gr.Button("Re-shading")
+                # adjust_thres_button = gr.Button("Re-shading")
         # write the botton function
         run_button.click(pre_gradio, inputs = [img_input, shadow, direction, resize, shadow_thres], outputs = [img_pre, img_heatmap])
-        adjust_thres_button.click(reshading, inputs = [img_input, img_heatmap, shadow_thres, resize], outputs = img_pre)
+        # adjust_thres_button.click(reshading, inputs = [img_input, img_heatmap, shadow_thres, resize], outputs = img_pre)
         gr.Examples(examples = examples, inputs = [img_input, direction, resize, shadow, shadow_thres])
-    demo.launch(share = False)
+    demo.launch(share = True)
 
 def pre_gradio(img_np, shadow, label, resize, shadow_thres):
     label = torch.Tensor([DIR_TO_FLOAT[label]]).to(device).unsqueeze(0).float()
     h, w = img_np.shape[0], img_np.shape[1]
     h, w = resize_hw(h, w, int(resize))
-    img_np = cv2.resize(img_np, (w, h), interpolation = cv2.INTER_AREA)
-    img = img = F.to_tensor(img_np / 255).to(device).unsqueeze(0).float()
+    img_np = cv2.resize(img_np.mean(axis = -1), (w, h), interpolation = cv2.INTER_AREA)
+    img = F.to_tensor(img_np / 255).to(device).unsqueeze(0).float()
     img = F.normalize(img, 0.5, 0.5)
     pre = shadowing(img, label)
-    pre_default = thres_norm_shadowmap(pre, shadow_thres)
-    img_pre = overlay_shadow(img_np, pre_default)
+    # denormalize
+    pre = (((pre/2 + 0.5).clip(0, 1))*255).clip(0,255)
+    pre_np, _ = fillmap_to_color(get_regions(pre))
+    pre_ = pre_np.mean(axis = -1)
+    pre_[pre_ != 255] = 127
+    pre_ /= 255
+    img_pre = overlay_shadow(img_np, pre_)
+    
+    # visualize ground truth if possible
     if shadow is not None:
         shadow = norm_shadow(shadow.mean(axis = -1))
         shadow = cv2.resize(shadow, (w, h), interpolation = cv2.INTER_NEAREST)
         img_gt = overlay_shadow(img_np, shadow)
         img_pre = np.concatenate((img_pre, img_gt), axis = 1)
-    return img_pre.astype(np.uint8), (pre * 255).astype(np.uint8)
+    return img_pre.astype(np.uint8), pre_np.astype(np.uint8)
 
 def read_examples():
     log.info("Loading examples")
@@ -131,17 +149,18 @@ def read_examples():
     for p in os.listdir(sample_path):
         if "line" in p:
             label = p.split('_')[1]
-            resize = "1024"
-            line = np.array(Image.open(join(sample_path, p)))
-            line = 255 - line[:, :, 3]
-            flat = np.array(Image.open(join(sample_path, p.replace('line', 'flat'))))
-            flat = remove_alpha(flat)
-            img_np = flat * (np.expand_dims(line, axis = -1) / 255)
-            drawing_path = join(sample_path, p.replace('line', 'drawing'))
-            if exists(drawing_path) == False:
-                Image.fromarray(img_np.astype(np.uint8)).save(drawing_path)
+            resize = "512"
+            # flat = np.array(Image.open(join(sample_path, p.replace('line', 'flat'))))
+            # flat = remove_alpha(flat)
+            # img_np = flat * (np.expand_dims(line, axis = -1) / 255)
+            # drawing_path = join(sample_path, p.replace('line', 'drawing'))
+            line_path = join(sample_path, p.replace('line', 'input'))
+            if exists(line_path) == False:
+                line = np.array(Image.open(join(sample_path, p)))
+                line = 255 - line[:, :, 3]
+                Image.fromarray(line.astype(np.uint8)).save(line_path)
             shadow_path = join(sample_path, p.replace('line', 'shadow'))
-            examples.append([drawing_path, label, resize, shadow_path, 0.5])
+            examples.append([line_path, label, resize, shadow_path, 0.5])
     return examples
 
 def reshading(img_np, heatmap, thres, resize):
@@ -307,7 +326,7 @@ def gkern(l=5, sig=1.):
 def parse():
     parser = argparse.ArgumentParser(description = "ShadowMagic Demo Ver 0.1",
         formatter_class = argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-m', type = str, default = './checkpoints/test/AP_GFMask1.pth',
+    parser.add_argument('-m', type = str, default = './checkpoints/model_test/base_mask.pth',
         help = 'the path to the pretrained model')
     parser.add_argument('-l', type = str, 
         help = 'the path to input line drawing')
