@@ -12,7 +12,7 @@ accelerate launch train_controlnet_sdxl.py \
  --cache_dir=dataset/sdxl\
  --validation_image "./validation/sd1.5/image11_color.png" "./validation/sd1.5/image11_line.png" "./validation/sd1.5/image12_color.png" "./validation/sd1.5/image12_line.png"\
  --validation_prompt "add shadow from left lighting and remove color" "add shadow from left lighting" "add shadow from left lighting and remove color" "add shadow from right lighting"\
- --validation_steps=500 \
+ --validation_steps=250 \
  --train_batch_size=1 \
  --gradient_accumulation_steps=4 \
  --report_to="wandb" \
