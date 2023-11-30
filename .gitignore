@@ -10,4 +10,5 @@ diffusers/shadowmagic_controlnet
 diffusers/shadowmagic_xl
 diffusers/pretrained
 diffusers/base_model
+diffusers/validation/raw
 
