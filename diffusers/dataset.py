@@ -4,6 +4,15 @@ import cv2
 from PIL import Image
 from os.path import join, exists
 from tqdm import tqdm
+import sys
+from pathlib import Path as P
+directory = os.path.realpath(os.path.dirname(__file__))
+directory = str(P(directory).parent)
+sys.path.append(join(directory, 'wgan', 'utils'))
+from preprocess import flat_refine
+import multiprocessing as mp
+import random
+
 
 def gen_prompt(dir, img_num, img_cond_num, color_mode):
     # one label example 
@@ -54,7 +63,7 @@ def get_bbox(flat):
     bottom = coords[:, 0].max()
     return (left, top, right, bottom)
 
-def crop_pad_resize(img, bbox, size = 512):
+def crop_pad_resize(img, bbox, size = 512, flat = False):
     # remove all back ground
     left, top, right, bottom = bbox    
     img = img[top:bottom, left:right, ...]
@@ -67,7 +76,10 @@ def crop_pad_resize(img, bbox, size = 512):
     elif w > h:
         pad = int((w - h) / 2)
         img_[pad:pad+h, :, ...] = img
-    img_ = cv2.resize(img_, (size, size), interpolation = cv2.INTER_AREA)
+    if flat:
+        img_ = cv2.resize(img_, (size, size), interpolation = cv2.INTER_NEAREST)
+    else:
+        img_ = cv2.resize(img_, (size, size), interpolation = cv2.INTER_AREA)
     return img_
 
 def gen_trainset_sd():
@@ -166,13 +178,102 @@ def gen_trainset_sd():
         line1 = crop_pad_resize(line1, bbox, size = 1024)
         Image.fromarray(line1).save(join(out_cond, img_list[i+1]))
 
+def remove_alpha(img):
+    assert img.shape[-1] == 4
+    alpha = (img[..., -1] / 255)[..., np.newaxis]
+    bg = np.ones((img.shape[0], img.shape[1], 3)) * 255
+    img = img[..., :3]
+    return (img * alpha + bg * (1 - alpha)).astype(np.uint8)
 
+def aq(name):
+    return "\""+name+"\""
+
+def gen_valset_sd_single(img, path_to_raw, path_to_sd15, path_to_sdxl):
+    print("log:\topening %s"%img)
+    val_root15 = './validation/sd1.5/'
+    val_rootxl = './validation/sdxl/'
+    directions = ['right', 'left', 'top', 'back']
+    if exists(join(path_to_sdxl, img.replace('flat', 'color'))) == False:
+        flat = np.array(Image.open(join(path_to_raw, img)))
+        line = np.array(Image.open(join(path_to_raw, img.replace('flat', 'line'))))
+        if line.shape[-1] == 4:
+            line = 255 - line[:, :, 3] # use alpha channle only as our line 
+        if flat.shape[-1] == 4:
+            flat = remove_alpha(flat)
+        # clean up flat image
+        # print("log:\trefine the flat layer")
+        flat_refined, _ = flat_refine(flat, line)
+        flat_refined = remove_alpha(flat_refined)
+        # blend flat and line 
+        assert (flat.shape[0], flat.shape[1]) == (line.shape[0], line.shape[1])
+        # print("log:\tblend flat and line layers")
+        color = (((flat/255) * (line/255)) * 255).astype(np.uint8)
+        # print("log:\tsave results to %s"%path_to_sd15)
+        bbox = get_bbox(color)
+        color_sd15 = crop_pad_resize(color, bbox, size = 512)
+        line_sd15 = crop_pad_resize(line, bbox, size = 512)
+        flat_sd15 = crop_pad_resize(flat_refined, bbox, size = 512, flat = True)
+        Image.fromarray(color_sd15).save(join(path_to_sd15, img.replace('flat', 'color')))
+        Image.fromarray(line_sd15).save(join(path_to_sd15, img.replace('flat', 'line')))
+        Image.fromarray(flat_sd15).save(join(path_to_sd15, img))
+        
+        # print("log:\tsave results to %s"%path_to_sdxl)
+        color_sd15 = crop_pad_resize(color, bbox, size = 1024)
+        line_sd15 = crop_pad_resize(line, bbox, size = 1024)
+        flat_sd15 = crop_pad_resize(flat_refined, bbox, size = 1024, flat = True)
+        Image.fromarray(color_sd15).save(join(path_to_sdxl, img.replace('flat', 'color')))
+        Image.fromarray(line_sd15).save(join(path_to_sdxl, img.replace('flat', 'line')))
+        Image.fromarray(flat_sd15).save(join(path_to_sdxl, img))
+    # generate validation cmds
+    val_img = []
+    direction = random.choices(directions, weights = (45, 45, 5, 5))[0]
+    prompt_line = "add shadow from %s lighting"%direction
+    direction = random.choices(directions, weights = (45, 45, 5, 5))[0]
+    prompt_color = "add shadow from %s lighting and remove color"%direction
+    val_img.append(['sd1.5', aq(val_root15+img.replace('flat', 'color')), aq(prompt_color)])
+    val_img.append(['sd1.5', aq(val_root15+img.replace('flat', 'line')), aq(prompt_line)])
+    val_img.append(['sdxl', aq(val_rootxl+img.replace('flat', 'color')), aq(prompt_color)])
+    val_img.append(['sdxl', aq(val_rootxl+img.replace('flat', 'line')), aq(prompt_line)])
+    return val_img
 
 def gen_valset_sd():
     path_to_img = 'validation'
+    ## generate the valdation set for both sd1.5 and sdxl
+    path_to_raw = join(path_to_img, 'raw')
+    path_to_sd15 = join(path_to_img, 'sd1.5')
+    path_to_sdxl = join(path_to_img, 'sdxl')
+    cmds = []
+    for img in os.listdir(path_to_raw):
+        if 'flat' not in img: continue
+        cmds.append([img, path_to_raw, path_to_sd15, path_to_sdxl])
+        # aa = gen_valset_sd_single(img, path_to_raw, path_to_sd15, path_to_sdxl)
+        # import pdb
+        # pdb.set_trace()
+    with mp.Pool(8) as pool:
+        res = pool.starmap(gen_valset_sd_single, cmds)
 
+    val_img_15 = []
+    val_prompt_15 = []
+    val_img_xl = []
+    val_prompt_xl = []
+    for g in res:
+        for l in g:
+            if l[0] == 'sd1.5':
+                val_img_15.append(l[1])
+                val_prompt_15.append(l[2])
+            elif l[0] == 'sdxl':
+                val_img_xl.append(l[1])
+                val_prompt_xl.append(l[2])
+    with open(join(path_to_sd15, 'val.txt'), "w") as f:
+        l1 = " ".join(val_img_15)
+        l2 = " ".join(val_prompt_15)
+        f.write("\n".join([l1, l2]))
+    with open(join(path_to_sdxl, 'val.txt'), "w") as f:
+        l1 = " ".join(val_img_xl)
+        l2 = " ".join(val_prompt_xl)
+        f.write("\n".join([l1, l2]))
 
 if __name__ == "__main__":
+    __spec__ = None
     # gen_trainset_sd()
     gen_valset_sd()
-    pass

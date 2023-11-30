@@ -250,8 +250,10 @@ def flat_refine(flat, line = None, second_pass = True):
     if line is None:
         line_gray = np.ones(flat.shape) * 255
     else:
-        if len(line.shape) == 3:
+        if line.shape[-1] == 4:
             line_gray = 255 - line[:,:,3]
+        if line.shape[-1] == 3:
+            line_gray = line.mean(axis = -1)
         else:
             line_gray = line
     _, line_gray = cv2.threshold(line_gray, 127, 255, cv2.THRESH_BINARY)
@@ -266,12 +268,11 @@ def flat_refine(flat, line = None, second_pass = True):
     fill, color_map = flat_to_fillmap(flat, second_pass)
     # set line drawing into the fill map
     fill[(255 - line_gray).astype(bool)] = 1
-    # # remove stray regions
-    # flat_refined =  fillmap_to_color(fill, color_map)
-    # for r in np.unique(fill):
-    #     mask = fill == r
-    #     if mask.sum() < 10:
-    #         fill[mask] = 1
+    ## remove stray regions
+    for r in np.unique(fill):
+        mask = fill == r
+        if mask.sum() < 10:
+            fill[mask] = 1
     fill = thinning(fill)
     flat_refined, _ =  fillmap_to_color(fill, color_map)
     return flat_refined, fill
