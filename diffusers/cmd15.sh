@@ -15,7 +15,7 @@ accelerate launch train_controlnet.py \
  --cache_dir=dataset/sd15\
  --validation_image "./validation/sd1.5/image11_color.png" "./validation/sd1.5/image11_line.png" "./validation/sd1.5/image12_color.png" "./validation/sd1.5/image12_line.png"\
  --validation_prompt "add shadow from left lighting and remove color" "add shadow from left lighting" "add shadow from left lighting and remove color" "add shadow from right lighting"\
- --train_batch_size=4 \
+ --train_batch_size=8 \
  --report_to="wandb"\
  --checkpointing_steps=500\
  --validation_steps=250
@@ -36,7 +36,7 @@ accelerate launch train_controlnet.py \
  --cache_dir=dataset/sd15\
  --validation_image "./validation/sd1.5/image11_color.png" "./validation/sd1.5/image11_line.png" "./validation/sd1.5/image12_color.png" "./validation/sd1.5/image12_line.png"\
  --validation_prompt "add shadow from left lighting and remove color" "add shadow from left lighting" "add shadow from left lighting and remove color" "add shadow from right lighting"\
- --train_batch_size=4 \
+ --train_batch_size=8 \
  --report_to="wandb"\
  --checkpointing_steps=500\
  --validation_steps=250
@@ -57,7 +57,7 @@ accelerate launch train_controlnet.py \
  --cache_dir=dataset/sd15\
  --validation_image "./validation/sd1.5/image11_color.png" "./validation/sd1.5/image11_line.png" "./validation/sd1.5/image12_color.png" "./validation/sd1.5/image12_line.png"\
  --validation_prompt "add shadow from left lighting and remove color" "add shadow from left lighting" "add shadow from left lighting and remove color" "add shadow from right lighting"\
- --train_batch_size=4 \
+ --train_batch_size=8 \
  --report_to="wandb"\
  --checkpointing_steps=500\
  --validation_steps=250
