@@ -7,10 +7,10 @@ accelerate launch train_controlnet.py \
  --output_dir=$OUTPUT_DIR \
  --dataset_name=waterheater/shadowmagic\
  --resolution=512 \
- --num_train_epochs=100\
+ --num_train_epochs=75\
  --learning_rate=1e-5 \
  --checkpoints_total_limit=20\
- --tracker_project_name=AnythingV5\
+ --tracker_project_name=ShadowMagicSD1.5\
  --validation_steps=500\
  --cache_dir=dataset/sd15\
  --validation_image "./validation/sd1.5/image11_color.png" "./validation/sd1.5/image11_line.png" "./validation/sd1.5/image12_color.png" "./validation/sd1.5/image12_line.png"\
@@ -28,10 +28,10 @@ accelerate launch train_controlnet.py \
  --output_dir=$OUTPUT_DIR \
  --dataset_name=waterheater/shadowmagic\
  --resolution=512 \
- --num_train_epochs=100\
+ --num_train_epochs=75\
  --learning_rate=1e-5 \
  --checkpoints_total_limit=20\
- --tracker_project_name=DivineeleganceMix\
+ --tracker_project_name=ShadowMagicSD1.5\
  --validation_steps=500\
  --cache_dir=dataset/sd15\
  --validation_image "./validation/sd1.5/image11_color.png" "./validation/sd1.5/image11_line.png" "./validation/sd1.5/image12_color.png" "./validation/sd1.5/image12_line.png"\
@@ -49,10 +49,10 @@ accelerate launch train_controlnet.py \
  --output_dir=$OUTPUT_DIR \
  --dataset_name=waterheater/shadowmagic\
  --resolution=512 \
- --num_train_epochs=100\
+ --num_train_epochs=75\
  --learning_rate=1e-5 \
  --checkpoints_total_limit=20\
- --tracker_project_name=Hassaku\
+ --tracker_project_name=ShadowMagicSD1.5\
  --validation_steps=500\
  --cache_dir=dataset/sd15\
  --validation_image "./validation/sd1.5/image11_color.png" "./validation/sd1.5/image11_line.png" "./validation/sd1.5/image12_color.png" "./validation/sd1.5/image12_line.png"\
