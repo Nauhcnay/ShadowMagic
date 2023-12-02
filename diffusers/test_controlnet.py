@@ -58,6 +58,16 @@ def predict_single(args, prompt, path_to_image,
                     controlnet, device, weight_dtype, 
                     auxiliary_prompt = None):
     path_to_realesrgan = Path("Real-ESRGAN")
+    if path_to_realesrgan.exists() == False:
+        os.system("git clone https://github.com/xinntao/Real-ESRGAN")
+        os.system('''
+            cd Real-ESRGAN
+            pip install basicsr
+            pip install facexlib
+            pip install gfpgan
+            pip install -r requirements.txt
+            python setup.py develop'''
+            )
     pyfile = "inference_realesrgan.py"
     assert (path_to_realesrgan/pyfile).exists()
     validation_prompt, validation_prompt_neg = prompt
