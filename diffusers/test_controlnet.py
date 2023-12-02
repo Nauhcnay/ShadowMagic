@@ -219,34 +219,43 @@ def main(args):
 
     for img in os.listdir(args.img):
         if 'png' not in img: continue
-        if "flat" in img or "res" in img or "shadow" in img: continue
+        if "res" in img or "shadow" in img: continue
         if (path_to_img / img.replace('color', 'shadow').replace('line', 'shadow')).exists(): continue
         if 'line' in img:
             prompt, direction = gen_prompt_line(dirs)
-        elif 'color' in img:
+            input_img_path = path_to_img / img
+            flat = np.array(Image.open(path_to_img / img.replace('line', 'flat')).convert("RGB"))
+        elif 'flat' in img:
             prompt, direction = gen_prompt_color(dirs)
+            input_img_path = path_to_img / img.replace('flat', 'color')
+            flat = np.array(Image.open(path_to_img / img).convert("RGB"))
+            if input_img_path.exists() is False:
+                line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).astype(float) / 255
+                Image.fromarray((flat * line).astype(np.uint8)).save(input_img_path)
+        else:
+            raise ValueError('not supported input %s!'%img)
 
+        mask = flat.mean(axis = -1) != 255
         imgs = predict_single(args,
-            [prompt, args.prompt_neg], path_to_img / img, 
+            [prompt, args.prompt_neg], , 
             vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, args.prompt_aux)
 
         # extract shadow layer and save results
+        out_path = Path('results')
         img_raw = Image.open(path_to_img / img)
+        img_raw.save(out_path / img)
         for i in range(len(imgs)):
-            extract_shadow(imgs[i], img_raw, img, direction)        
+            extract_shadow(imgs[i], img_raw, img, direction, i, out_path, mask)        
         # save the blended result
 
-def extract_shadow(res, img, name, direction):
-    out_path = Path('results')
-    shadow = (np.array(res).mean(axis = -1) < 125).astype(float)
+def extract_shadow(res, img, name, direction, idx, out_path, flat_mask):
+    shadow = (np.array(res).mean(axis = -1) < 150).astype(float)
     shadow[shadow != 0] = 0.5
     shadow[shadow == 0] = 1
+    shadow = shadow * flat_mask.astype(float)
     img_np = np.array(img)
-    img.save(out_path/name)
-    Image.fromarray((shadow*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow.png"%direction))
-    Image.fromarray((img_np * shadow[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend.png"%direction))
-    
-
+    Image.fromarray((shadow*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
+    Image.fromarray((img_np * shadow[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
 
 def parse_args(input_args=None):
     parser = argparse.ArgumentParser(description="ShadowMagic SD backend v0.1")
@@ -274,7 +283,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--pretrained_model_name_or_path",
         type=str,
-        default="frankjoshua/AnythingV5Ink_ink",
+        default="stablediffusionapi/divineelegancemix",
         help="Path to pretrained model or model identifier from huggingface.co/models.",
     )
     parser.add_argument(
@@ -296,7 +305,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--controlnet_model_name_or_path",
         type=str,
-        default="./pretrained/anythingv5",
+        default="./pretrained/divineelegancemix",
         help="Path to pretrained controlnet model or model identifier from huggingface.co/models."
         " If not specified controlnet weights are initialized from unet.",
     )
