@@ -237,7 +237,7 @@ def main(args):
 
         mask = flat.mean(axis = -1) != 255
         imgs = predict_single(args,
-            [prompt, args.prompt_neg], , 
+            [prompt, args.prompt_neg], input_img_path,
             vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, args.prompt_aux)
 
         # extract shadow layer and save results
