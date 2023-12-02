@@ -232,7 +232,7 @@ def main(args):
 
         # extract shadow layer and save results
         img_raw = Image.open(path_to_img / img)
-        if i in range(len(imgs)):
+        for i in range(len(imgs)):
             extract_shadow(imgs[i], img_raw, img, direction)        
         # save the blended result
 
@@ -243,8 +243,8 @@ def extract_shadow(res, img, name, direction):
     shadow[shadow == 0] = 1
     img_np = np.array(img)
     Image.save(out_path/name)
-    Image.fromarray((shadow*255).astype(np.uint8)).save(out_path/name.replace(".png", "_shadow.png"))
-    Image.fromarray((img_np * shadow[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_blend.png"))
+    Image.fromarray((shadow*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow.png"%direction))
+    Image.fromarray((img_np * shadow[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend.png"%direction))
     
 
 
