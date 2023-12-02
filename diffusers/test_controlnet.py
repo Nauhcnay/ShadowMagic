@@ -117,9 +117,10 @@ def predict_single(args, prompt, path_to_image,
         with torch.autocast("cuda"):
             image = pipeline(
                 validation_prompt, validation_image, 
-                num_inference_steps=20, 
+                num_inference_steps=args.num_inference_steps, 
                 generator=generator,
                 negative_prompt= validation_prompt_neg,
+                guidance_scale = args.guidance_scale
             ).images[0]
             ## upscale the output back to origianl size
             # let's upscale it 4x by realesrgan first
@@ -332,6 +333,18 @@ def parse_args(input_args=None):
         type=int,
         default=4,
         help="Number of images to be generated for each `--validation_image`, `--validation_prompt` pair",
+    )
+    parser.add_argument(
+        "--num_inference_steps",
+        type=int,
+        default=20,
+        help="The number of denoising steps. More denoising steps usually lead to a higher quality image at the expense of slower inference.",
+    )
+    parser.add_argument(
+        "--guidance_scale",
+        type=int,
+        default=7.5,
+        help="A higher guidance scale value encourages the model to generate images closely linked to the text prompt at the expense of lower image quality.",
     )
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
 
