@@ -124,16 +124,17 @@ def predict_single(args, prompt, path_to_image,
             ## upscale the output back to origianl size
             # let's upscale it 4x by realesrgan first
             temp_png = str(uuid.uuid4()) + ".png"
-            temp_png_4x = temp_png.replace(".png", "_4x.png")
+            out_path = Path(temp_png.replace(".png", ""))
+            png_4x = temp_png.replace(".png", "_out.png")
             image.save(temp_png)
-            cmd  = "python %s -n RealESRGAN_x4plus_anime_6B -i %s -o %s"%(path_to_realesrgan/pyfile, temp_png, temp_png_4x)
+            cmd  = "python %s -n RealESRGAN_x4plus_anime_6B -i %s -o %s"%(path_to_realesrgan/pyfile, temp_png, out_path)
             os.system(cmd)
-            image = Image.open(temp_png_4x)
+            image = Image.open(out_path/png_4x)
             # resize back to original size
             image = image.resize((w, h))
             # clean up
             os.remove(temp_png)
-            os.remove(temp_png_4x)
+            shutil.rmtree(out_path)
             images.append(image)
     return images
 
@@ -229,10 +230,23 @@ def main(args):
             [prompt, args.prompt_neg], path_to_img / img, 
             vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, args.prompt_aux)
 
-        # extract shadow layer and merge it back to input image
+        # extract shadow layer and save results
+        img_raw = Image.open(path_to_img / img)
         if i in range(len(imgs)):
-            pass
+            extract_shadow(imgs[i], img_raw, img, direction)        
         # save the blended result
+
+def extract_shadow(res, img, name, direction):
+    out_path = Path('results')
+    shadow = (np.array(res).mean(axis = -1) < 125).astype(float)
+    shadow[shadow != 0] = 0.5
+    shadow[shadow == 0] = 1
+    img_np = np.array(img)
+    Image.save(out_path/name)
+    Image.fromarray((shadow*255).astype(np.uint8)).save(out_path/name.replace(".png", "_shadow.png"))
+    Image.fromarray((img_np * shadow[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_blend.png"))
+    
+
 
 def parse_args(input_args=None):
     parser = argparse.ArgumentParser(description="ShadowMagic SD backend v0.1")
