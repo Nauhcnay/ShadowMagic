@@ -41,9 +41,9 @@ accelerate launch train_controlnet.py \
  --checkpointing_steps=500\
  --validation_steps=250
 
-# Hassaku
-export MODEL_DIR="dwarfbum/Hassaku"
-export OUTPUT_DIR="checkpoints/Hassaku"
+# MeinaPastel
+export MODEL_DIR="Meina/MeinaPastel_V6"
+export OUTPUT_DIR="checkpoints/MeinaPastel"
 accelerate launch train_controlnet.py \
  --pretrained_model_name_or_path=$MODEL_DIR \
  --output_dir=$OUTPUT_DIR \
