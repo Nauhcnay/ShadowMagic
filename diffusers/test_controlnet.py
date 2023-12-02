@@ -202,7 +202,7 @@ def main(args):
 
         imgs = predict_single(args,
             [prompt, args.prompt_neg], path_to_img / img, 
-            vae, text_encoder, tokenizer, unet, controlnet, weight_dtype, args.prompt_aux)
+            vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, args.prompt_aux)
 
         # extract shadow layer and merge it back to input image
         if i in range(len(imgs)):
