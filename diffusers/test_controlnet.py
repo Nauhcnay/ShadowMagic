@@ -219,8 +219,6 @@ def main(args):
 
     for img in os.listdir(args.img):
         if 'png' not in img: continue
-        if "res" in img or "shadow" in img: continue
-        if (path_to_img / img.replace('color', 'shadow').replace('line', 'shadow')).exists(): continue
         print("log:\topening %s"%img)
         if 'line' in img:
             prompt, direction = gen_prompt_line(dirs)
