@@ -3,6 +3,7 @@ import math
 import os
 import random
 import shutil
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -56,6 +57,9 @@ def predict_single(args, prompt, path_to_image,
                     vae, text_encoder, tokenizer, unet, 
                     controlnet, device, weight_dtype, 
                     auxiliary_prompt = None):
+    path_to_realesrgan = Path("Real-ESRGAN")
+    pyfile = "inference_realesrgan.py"
+    assert (path_to_realesrgan/pyfile).exists()
     validation_prompt, validation_prompt_neg = prompt
     assert isinstance(validation_prompt, str)
     if auxiliary_prompt is not None:
@@ -106,9 +110,20 @@ def predict_single(args, prompt, path_to_image,
                 num_inference_steps=20, 
                 generator=generator,
                 negative_prompt= validation_prompt_neg,
-                height = h,
-                width = w,
             ).images[0]
+            ## upscale the output back to origianl size
+            # let's upscale it 4x by realesrgan first
+            temp_png = str(uuid.uuid4()) + ".png"
+            temp_png_4x = temp_png.replace(".png", "_4x.png")
+            image.save(temp_png)
+            cmd  = "python %s -n RealESRGAN_x4plus_anime_6B -i %s -o %s"%(path_to_realesrgan/pyfile, temp_png, temp_png_4x)
+            os.system(cmd)
+            image = Image.open(temp_png_4x)
+            # resize back to original size
+            image = image.resize((w, h))
+            # clean up
+            os.remove(temp_png)
+            os.remove(temp_png_4x)
             images.append(image)
     return images
 
