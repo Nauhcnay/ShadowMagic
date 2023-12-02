@@ -242,7 +242,7 @@ def extract_shadow(res, img, name, direction):
     shadow[shadow != 0] = 0.5
     shadow[shadow == 0] = 1
     img_np = np.array(img)
-    Image.save(out_path/name)
+    img.save(out_path/name)
     Image.fromarray((shadow*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow.png"%direction))
     Image.fromarray((img_np * shadow[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend.png"%direction))
     
