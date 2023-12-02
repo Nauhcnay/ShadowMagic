@@ -84,8 +84,6 @@ def predict_single(args, prompt, path_to_image,
         safety_checker=None,
         revision=args.revision,
         torch_dtype=weight_dtype,
-        height = h,
-        width = w,
     )
     pipeline.scheduler = UniPCMultistepScheduler.from_config(pipeline.scheduler.config)
     pipeline = pipeline.to(device)
@@ -107,7 +105,9 @@ def predict_single(args, prompt, path_to_image,
                 validation_prompt, validation_image, 
                 num_inference_steps=20, 
                 generator=generator,
-                negative_prompt= validation_prompt_neg
+                negative_prompt= validation_prompt_neg,
+                height = h,
+                width = w,
             ).images[0]
             images.append(image)
     return images
