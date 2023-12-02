@@ -221,6 +221,7 @@ def main(args):
         if 'png' not in img: continue
         if "res" in img or "shadow" in img: continue
         if (path_to_img / img.replace('color', 'shadow').replace('line', 'shadow')).exists(): continue
+        print("log:\topening %s"%img)
         if 'line' in img:
             prompt, direction = gen_prompt_line(dirs)
             input_img_path = path_to_img / img
@@ -235,7 +236,7 @@ def main(args):
         else:
             raise ValueError('not supported input %s!'%img)
 
-        mask = flat.mean(axis = -1) != 255
+        mask = flat.mean(axis = -1) == 255
         imgs = predict_single(args,
             [prompt, args.prompt_neg], input_img_path,
             vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, args.prompt_aux)
