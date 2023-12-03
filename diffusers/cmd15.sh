@@ -7,18 +7,18 @@ accelerate launch train_controlnet.py \
  --output_dir=$OUTPUT_DIR \
  --dataset_name=waterheater/shadowmagic\
  --resolution=512 \
- --num_train_epochs=75\
+ --num_train_epochs=150\
  --learning_rate=1e-5 \
  --checkpoints_total_limit=20\
  --tracker_project_name=ShadowMagicSD1.5\
- --validation_steps=500\
+ --validation_steps=1000\
  --cache_dir=dataset/sd15\
  --validation_image "./validation/sd1.5/image11_color.png" "./validation/sd1.5/image11_line.png" "./validation/sd1.5/image12_color.png" "./validation/sd1.5/image12_line.png"\
  --validation_prompt "add shadow from left lighting and remove color" "add shadow from left lighting" "add shadow from left lighting and remove color" "add shadow from right lighting"\
  --train_batch_size=8 \
  --report_to="wandb"\
- --checkpointing_steps=500\
- --validation_steps=250
+ --checkpointing_steps=1000\
+ --validation_steps=1000
 
 # divineelegancemix
 export MODEL_DIR="stablediffusionapi/divineelegancemix"
@@ -32,14 +32,14 @@ accelerate launch train_controlnet.py \
  --learning_rate=1e-5 \
  --checkpoints_total_limit=20\
  --tracker_project_name=ShadowMagicSD1.5\
- --validation_steps=500\
+ --validation_steps=1000\
  --cache_dir=dataset/sd15\
  --validation_image "./validation/sd1.5/image11_color.png" "./validation/sd1.5/image11_line.png" "./validation/sd1.5/image12_color.png" "./validation/sd1.5/image12_line.png"\
  --validation_prompt "add shadow from left lighting and remove color" "add shadow from left lighting" "add shadow from left lighting and remove color" "add shadow from right lighting"\
  --train_batch_size=8 \
  --report_to="wandb"\
- --checkpointing_steps=500\
- --validation_steps=250
+ --checkpointing_steps=1000\
+ --validation_steps=1000
 
 # MeinaPastel
 export MODEL_DIR="Meina/MeinaPastel_V6"
@@ -49,15 +49,15 @@ accelerate launch train_controlnet.py \
  --output_dir=$OUTPUT_DIR \
  --dataset_name=waterheater/shadowmagic\
  --resolution=512 \
- --num_train_epochs=75\
+ --num_train_epochs=150\
  --learning_rate=1e-5 \
  --checkpoints_total_limit=20\
  --tracker_project_name=ShadowMagicSD1.5\
- --validation_steps=500\
+ --validation_steps=1000\
  --cache_dir=dataset/sd15\
  --validation_image "./validation/sd1.5/image11_color.png" "./validation/sd1.5/image11_line.png" "./validation/sd1.5/image12_color.png" "./validation/sd1.5/image12_line.png"\
  --validation_prompt "add shadow from left lighting and remove color" "add shadow from left lighting" "add shadow from left lighting and remove color" "add shadow from right lighting"\
  --train_batch_size=8 \
  --report_to="wandb"\
- --checkpointing_steps=500\
- --validation_steps=250
+ --checkpointing_steps=1000\
+ --validation_steps=1000

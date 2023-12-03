@@ -206,24 +206,24 @@ def save_model_card(repo_id: str, image_logs=None, base_model=str, repo_folder=N
             img_str += f"![images_{i})](./images_{i}.png)\n"
 
     yaml = f"""
-                ---
-                license: creativeml-openrail-m
-                base_model: {base_model}
-                tags:
-                - stable-diffusion
-                - stable-diffusion-diffusers
-                - text-to-image
-                - diffusers
-                - controlnet
-                inference: true
-                ---
-                    """
-                    model_card = f"""
-                # controlnet-{repo_id}
+---
+license: creativeml-openrail-m
+base_model: {base_model}
+tags:
+- stable-diffusion
+- stable-diffusion-diffusers
+- text-to-image
+- diffusers
+- controlnet
+inference: true
+---
+    """
+    model_card = f"""
+# controlnet-{repo_id}
 
-                These are controlnet weights trained on {base_model} with new type of conditioning.
-                {img_str}
-            """
+These are controlnet weights trained on {base_model} with new type of conditioning.
+{img_str}
+"""
     with open(os.path.join(repo_folder, "README.md"), "w") as f:
         f.write(yaml + model_card)
 
