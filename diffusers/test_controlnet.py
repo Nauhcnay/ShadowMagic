@@ -219,7 +219,7 @@ def main(args):
         return "add shadow from %s lighting and remove color"%direction, direction
 
     for img in os.listdir(args.img):
-        if 'png' not in img: continue
+        if 'png' not in img or 'color' in img: continue
         print("log:\topening %s"%img)
         if 'line' in img:
             prompt, direction = gen_prompt_line(dirs)
