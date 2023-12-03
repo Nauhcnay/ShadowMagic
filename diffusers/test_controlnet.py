@@ -256,6 +256,7 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat_mask):
     img_np = np.array(img)
     Image.fromarray((shadow*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
     Image.fromarray((img_np * shadow[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
+    res.save(out_path/name.replace(".png", "_%s_res%d.png"%(direction, idx)))
 
 def parse_args(input_args=None):
     parser = argparse.ArgumentParser(description="ShadowMagic SD backend v0.1")
