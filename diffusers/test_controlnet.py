@@ -79,9 +79,9 @@ def predict_single(args, prompt, path_to_image,
     raw_img = Image.open(path_to_image).convert("RGB")
     w, h = raw_img.size
     # downsize if necessary
-    if h > 512 or w > 512:
+    if h > 1024 or w > 1024:
         long_side = h if h > w else w
-        ratio = 512 / long_side
+        ratio = 1024 / long_side
         h_new = int(h * ratio)
         w_new = int(w * ratio)
         validation_image = raw_img.resize((w_new, h_new))
@@ -306,7 +306,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--controlnet_model_name_or_path",
         type=str,
-        default="./pretrained/divineelegancemix",
+        default="./pretrained/divineelegancemix_2x",
         help="Path to pretrained controlnet model or model identifier from huggingface.co/models."
         " If not specified controlnet weights are initialized from unet.",
     )
@@ -338,12 +338,12 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--num_inference_steps",
         type=int,
-        default=20,
+        default=50,
         help="The number of denoising steps. More denoising steps usually lead to a higher quality image at the expense of slower inference.",
     )
     parser.add_argument(
         "--guidance_scale",
-        type=int,
+        type=float,
         default=7.5,
         help="A higher guidance scale value encourages the model to generate images closely linked to the text prompt at the expense of lower image quality.",
     )
