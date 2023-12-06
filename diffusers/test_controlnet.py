@@ -232,12 +232,12 @@ def main(args):
                 prompt, direction = gen_prompt_line(d)
                 input_img_path = path_to_img / img
                 flat = np.array(Image.open(path_to_img / img.replace('line', 'flat')).convert("RGB"))
-                line = np.array(Image.open(path_to_img / img).convert("RGB"))
+                line = np.array(Image.open(path_to_img / img).convert("RGB")).mean(axis = -1).astype(float) / 255
             elif 'flat' in img:
                 prompt, direction = gen_prompt_color(d)
                 input_img_path = path_to_img / img.replace('flat', 'color')
                 flat = np.array(Image.open(path_to_img / img).convert("RGB"))
-                line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).astype(float) / 255
+                line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).mean(axis = -1).astype(float) / 255
                 if input_img_path.exists() is False:
                     Image.fromarray((flat * line).astype(np.uint8)).save(input_img_path)
             else:
