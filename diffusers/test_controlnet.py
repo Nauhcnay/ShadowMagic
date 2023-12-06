@@ -265,7 +265,7 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = N
     if line is not None:
         line_mask = line < 0.2
         res_np[line_mask] = True
-        _, regs = cv2.connectedComponents(~res_np, connectivity=4)
+        _, regs = cv2.connectedComponents((~res_np).astype(np.uint8), connectivity=4)
         for r in np.unique(regs):
             m = regs == r
             if m.sum() < 1000:
