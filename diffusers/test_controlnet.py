@@ -4,6 +4,7 @@ import os
 import random
 import shutil
 import uuid
+import cv2
 from pathlib import Path
 
 import numpy as np
@@ -259,14 +260,22 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = N
     res.save(out_path/name.replace(".png", "_%s_res%d.png"%(direction, idx)))
     # shadow = (np.array(res).mean(axis = -1) < 127).astype(float)
     # shadow[flat_mask] = 1
-    res_np = np.array(res).mean(axis = -1) / 255
-    res_np[res_np >= 0.75] = 1
+    res_np = (np.array(res).mean(axis = -1) / 255) >= 0.65
+    res_np[flat_mask] = True
     if line is not None:
-        line_mask = line < 0.5
-        res_np[line_mask] = 1
+        line_mask = line < 0.2
+        res_np[line_mask] = True
+        _, regs = cv2.connectedComponents(~res_np, connectivity=4)
+        for r in np.unique(regs):
+            m = regs == r
+            if m.sum() < 1000:
+                res_np[m] = True
     img_np = np.array(img)
-    Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
     Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
+    res_np = res_np.astype(float)
+    # make the shadow region less dark
+    res_np[res_np == 0] = 0.5
+    Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
     
 
 def parse_args(input_args=None):
