@@ -260,7 +260,7 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = N
     # shadow = (np.array(res).mean(axis = -1) < 127).astype(float)
     # shadow[flat_mask] = 1
     res_np = np.array(res).mean(axis = -1) / 255
-    res_np[res_np >= 0.45] = 1
+    res_np[res_np >= 0.75] = 1
     if line is not None:
         line_mask = line < 0.5
         res_np[line_mask] = 1
