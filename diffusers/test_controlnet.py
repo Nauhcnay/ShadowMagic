@@ -262,7 +262,7 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = N
     res_np = np.array(res).mean(axis = -1) / 255
     res_np[res_np >= 0.45] = 1
     if line is not None:
-        line_mask = (line.mean(axis = -1) / 255) < 0.5
+        line_mask = line < 0.5
         res_np[line_mask] = 1
     img_np = np.array(img)
     Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
