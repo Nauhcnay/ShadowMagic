@@ -209,7 +209,7 @@ def main(args):
     path_to_img = Path(args.img)
     assert path_to_img.is_dir()
 
-    dirs = ['left', 'right']
+    dirs = ['left', 'right', "top", "back"]
 
     def gen_prompt_line(dirs):
         if isinstance(dirs, str):
@@ -218,43 +218,47 @@ def main(args):
             direction = random.sample(dirs, k = 1)[0]
         return "add shadow from %s lighting"%direction, direction
     
-    def gen_prompt_color(dirs):
-        if isinstance(dirs, str):
-            direction = dirs
-        else:    
-            direction = random.sample(dirs, k = 1)[0]
-        return "add shadow from %s lighting and remove color"%direction, direction
+    def gen_prompt_color():
+        return "add shadow from left and right lighting"
+
+    
+    # def gen_prompt_color(dirs):
+    #     if isinstance(dirs, str):
+    #         direction = dirs
+    #     else:    
+    #         direction = random.sample(dirs, k = 1)[0]
+    #     return "add shadow from %s lighting and remove color"%direction, direction
 
     for img in os.listdir(args.img):
         if 'png' not in img or 'color' in img: continue
         print("log:\topening %s"%img)
-        for d in dirs:
-            if 'line' in img:
-                prompt, direction = gen_prompt_line(d)
-                input_img_path = path_to_img / img
-                flat = np.array(Image.open(path_to_img / img.replace('line', 'flat')).convert("RGB"))
-                line = np.array(Image.open(path_to_img / img).convert("RGB")).mean(axis = -1).astype(float) / 255
-            elif 'flat' in img:
-                prompt, direction = gen_prompt_color(d)
-                input_img_path = path_to_img / img.replace('flat', 'color')
-                flat = np.array(Image.open(path_to_img / img).convert("RGB"))
-                line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).mean(axis = -1).astype(float) / 255
-                if input_img_path.exists() is False:
-                    Image.fromarray((flat * line).astype(np.uint8)).save(input_img_path)
-            else:
-                raise ValueError('not supported input %s!'%img)
+        # for d in dirs:
+        # if 'line' in img:
+        #     prompt, direction = gen_prompt_line(d)
+        #     input_img_path = path_to_img / img
+        #     flat = np.array(Image.open(path_to_img / img.replace('line', 'flat')).convert("RGB"))
+        #     line = np.array(Image.open(path_to_img / img).convert("RGB")).mean(axis = -1).astype(float) / 255
+        if 'flat' in img:
+            prompt, direction = gen_prompt_color(d)
+            input_img_path = path_to_img / img.replace('flat', 'color')
+            flat = np.array(Image.open(path_to_img / img).convert("RGB"))
+            line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).mean(axis = -1).astype(float) / 255
+            if input_img_path.exists() is False:
+                Image.fromarray((flat * line).astype(np.uint8)).save(input_img_path)
+        else:
+            raise ValueError('not supported input %s!'%img)
 
-            mask = flat.mean(axis = -1) == 255
-            imgs = predict_single(args,
-                [prompt, args.prompt_neg], input_img_path,
-                vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, args.prompt_aux)
+        mask = flat.mean(axis = -1) == 255
+        imgs = predict_single(args,
+            [prompt, args.prompt_neg], input_img_path,
+            vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, args.prompt_aux)
 
-            # extract shadow layer and save results
-            out_path = Path('results')
-            img_raw = Image.open(input_img_path)
-            img_raw.save(out_path / img.replace('flat', 'color'))
-            for i in range(len(imgs)):
-                extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, mask, line)
+        # extract shadow layer and save results
+        out_path = Path('results')
+        img_raw = Image.open(input_img_path)
+        img_raw.save(out_path / img.replace('flat', 'color'))
+        for i in range(len(imgs)):
+            extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, mask, line)
 
 def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = None):
     res.save(out_path/name.replace(".png", "_%s_res%d.png"%(direction, idx)))
