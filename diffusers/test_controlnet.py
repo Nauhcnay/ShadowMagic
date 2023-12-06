@@ -232,12 +232,13 @@ def main(args):
                 prompt, direction = gen_prompt_line(d)
                 input_img_path = path_to_img / img
                 flat = np.array(Image.open(path_to_img / img.replace('line', 'flat')).convert("RGB"))
+                line = np.array(Image.open(path_to_img / img).convert("RGB"))
             elif 'flat' in img:
                 prompt, direction = gen_prompt_color(d)
                 input_img_path = path_to_img / img.replace('flat', 'color')
                 flat = np.array(Image.open(path_to_img / img).convert("RGB"))
+                line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).astype(float) / 255
                 if input_img_path.exists() is False:
-                    line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).astype(float) / 255
                     Image.fromarray((flat * line).astype(np.uint8)).save(input_img_path)
             else:
                 raise ValueError('not supported input %s!'%img)
@@ -252,14 +253,17 @@ def main(args):
             img_raw = Image.open(input_img_path)
             img_raw.save(out_path / img.replace('flat', 'color'))
             for i in range(len(imgs)):
-                extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, mask)
+                extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, mask, line)
 
-def extract_shadow(res, img, name, direction, idx, out_path, flat_mask):
+def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = None):
     res.save(out_path/name.replace(".png", "_%s_res%d.png"%(direction, idx)))
-    shadow = (np.array(res).mean(axis = -1) < 127).astype(float)
-    res_np = np.array(res) / 255
-    res_np[shadow == 0] = 1
-    shadow[flat_mask] = 1
+    # shadow = (np.array(res).mean(axis = -1) < 127).astype(float)
+    # shadow[flat_mask] = 1
+    res_np = np.array(res).mean(axis = -1) / 255
+    res_np[res_np >= 0.45] = 1
+    if line is not None:
+        line_mask = (line.mean(axis = -1) / 255) < 0.5
+        res_np[line_mask] = 1
     img_np = np.array(img)
     Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
     Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
