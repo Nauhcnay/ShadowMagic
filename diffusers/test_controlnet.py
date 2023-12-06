@@ -219,7 +219,7 @@ def main(args):
         return "add shadow from %s lighting"%direction, direction
     
     def gen_prompt_color():
-        return "add shadow from left and right lighting"
+        return "add shadow from left and right lighting", "lr"
 
     
     # def gen_prompt_color(dirs):
@@ -239,7 +239,7 @@ def main(args):
         #     flat = np.array(Image.open(path_to_img / img.replace('line', 'flat')).convert("RGB"))
         #     line = np.array(Image.open(path_to_img / img).convert("RGB")).mean(axis = -1).astype(float) / 255
         if 'flat' in img:
-            prompt, direction = gen_prompt_color(d)
+            prompt, direction = gen_prompt_color()
             input_img_path = path_to_img / img.replace('flat', 'color')
             flat = np.array(Image.open(path_to_img / img).convert("RGB"))
             line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).mean(axis = -1).astype(float) / 255
