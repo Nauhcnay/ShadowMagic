@@ -265,16 +265,27 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = N
     if line is not None:
         line_mask = line < 0.2
         res_np[line_mask] = True
+        # remove stray shadow regions
         _, regs = cv2.connectedComponents((~res_np).astype(np.uint8), connectivity=4)
         for r in np.unique(regs):
             m = regs == r
             if m.sum() < 1000:
                 res_np[m] = True
-    img_np = np.array(img)
-    Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
+        # remvoe stray light regions
+        _, regs = cv2.connectedComponents(res_np.astype(np.uint8), connectivity=4)
+        for r in np.unique(regs):
+            m = regs == r
+            if m.sum() < 1000:
+                res_np[m] = False
+    # convert shadow flag map into shadows
     res_np = res_np.astype(float)
-    # make the shadow region less dark
     res_np[res_np == 0] = 0.5
+    img_np = np.array(img)
+    
+    Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
+    
+    # make the shadow region less dark
+    
     Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
     
 
