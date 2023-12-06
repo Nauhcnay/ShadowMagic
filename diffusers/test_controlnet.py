@@ -128,7 +128,7 @@ def predict_single(args, prompt, path_to_image,
             out_path = Path(temp_png.replace(".png", ""))
             png_4x = temp_png.replace(".png", "_out.png")
             image.save(temp_png)
-            cmd  = "python %s -n RealESRGAN_x4plus_anime_6B -i %s -o %s"%(path_to_realesrgan/pyfile, temp_png, out_path)
+            cmd  = "python %s -n RealESRGAN_x4plus_anime_6B -i %s -o %s -s 2"%(path_to_realesrgan/pyfile, temp_png, out_path)
             os.system(cmd)
             image = Image.open(out_path/png_4x)
             # resize back to original size
