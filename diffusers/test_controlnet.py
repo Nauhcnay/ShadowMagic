@@ -109,11 +109,15 @@ def predict_single(args, prompt, path_to_image,
 
     if args.seed is None:
         generator = None
+    elif args.seed == -1:
+        seed = random.randint(0,4294967295)
+        generator = torch.Generator(device=device).manual_seed(seed)
     else:
         generator = torch.Generator(device=device).manual_seed(args.seed)
 
     # predict 4 outputs for each input image
     images = []
+    seeds = []
     for _ in range(args.num_validation_images):
         with torch.autocast("cuda"):
             image = pipeline(
@@ -138,7 +142,11 @@ def predict_single(args, prompt, path_to_image,
             os.remove(temp_png)
             shutil.rmtree(out_path)
             images.append(image)
-    return images
+            if args.seed == -1:
+                seeds.append(seed)
+            else:
+                seeds.append(args.seed)
+    return images, seeds
 
 def main(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -209,7 +217,8 @@ def main(args):
     path_to_img = Path(args.img)
     assert path_to_img.is_dir()
 
-    dirs = ['left', 'right', "top", "back"]
+    # dirs = ['left', 'right', "top", "back"]
+    dirs = ['left', 'right']
 
     def gen_prompt_line(dirs):
         if isinstance(dirs, str):
@@ -218,16 +227,16 @@ def main(args):
             direction = random.sample(dirs, k = 1)[0]
         return "add shadow from %s lighting"%direction, direction
     
-    def gen_prompt_color():
-        return "add shadow from left and right lighting", "lr"
+    # def gen_prompt_color():
+    #     return "add shadow from left and right lighting", "lr"
 
     
-    # def gen_prompt_color(dirs):
-    #     if isinstance(dirs, str):
-    #         direction = dirs
-    #     else:    
-    #         direction = random.sample(dirs, k = 1)[0]
-    #     return "add shadow from %s lighting and remove color"%direction, direction
+    def gen_prompt_color(dirs):
+        if isinstance(dirs, str):
+            direction = dirs
+        else:    
+            direction = random.sample(dirs, k = 1)[0]
+        return "add shadow from %s lighting and remove color"%direction, direction
 
     for img in os.listdir(args.img):
         if 'png' not in img or 'color' in img: continue
@@ -239,7 +248,7 @@ def main(args):
         #     flat = np.array(Image.open(path_to_img / img.replace('line', 'flat')).convert("RGB"))
         #     line = np.array(Image.open(path_to_img / img).convert("RGB")).mean(axis = -1).astype(float) / 255
         if 'flat' in img:
-            prompt, direction = gen_prompt_color()
+            prompt, direction = gen_prompt_color("left")
             input_img_path = path_to_img / img.replace('flat', 'color')
             flat = np.array(Image.open(path_to_img / img).convert("RGB"))
             line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).mean(axis = -1).astype(float) / 255
@@ -249,7 +258,7 @@ def main(args):
             raise ValueError('not supported input %s!'%img)
 
         mask = flat.mean(axis = -1) == 255
-        imgs = predict_single(args,
+        imgs, seeds = predict_single(args,
             [prompt, args.prompt_neg], input_img_path,
             vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, args.prompt_aux)
 
@@ -258,9 +267,9 @@ def main(args):
         img_raw = Image.open(input_img_path)
         img_raw.save(out_path / img.replace('flat', 'color'))
         for i in range(len(imgs)):
-            extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, mask, line)
+            extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, mask, line, seeds[i])
 
-def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = None):
+def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = None, seed = None):
     res.save(out_path/name.replace(".png", "_%s_res%d.png"%(direction, idx)))
     # shadow = (np.array(res).mean(axis = -1) < 127).astype(float)
     # shadow[flat_mask] = 1
@@ -286,11 +295,16 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = N
     res_np[res_np == 0] = 0.5
     img_np = np.array(img)
     
-    Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
+    if seed is None:
+        Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
+    else:
+        Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_blend%d.png"%(direction, seed, idx)))
     
     # make the shadow region less dark
-    
-    Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
+    if seed is None:
+        Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
+    else:
+        Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_shadow%d.png"%(direction, seed, idx)))
     
 
 def parse_args(input_args=None):
@@ -373,7 +387,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--num_inference_steps",
         type=int,
-        default=50,
+        default=30,
         help="The number of denoising steps. More denoising steps usually lead to a higher quality image at the expense of slower inference.",
     )
     parser.add_argument(
