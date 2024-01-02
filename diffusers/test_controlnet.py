@@ -86,6 +86,8 @@ def predict_single(args, prompt, path_to_image,
         h_new = int(h * ratio)
         w_new = int(w * ratio)
         validation_image = raw_img.resize((w_new, h_new))
+    else:
+        validation_image = raw_img
 
     # https://huggingface.co/docs/diffusers/v0.24.0/en/api/pipelines/overview#diffusers.DiffusionPipeline
     # more parameter explaination
