@@ -272,7 +272,7 @@ def main(args):
             extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, mask, line, seeds[i])
 
 def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = None, seed = None):
-    res.save(out_path/name.replace(".png", "_%s_res%d.png"%(direction, idx)))
+    # res.save(out_path/name.replace(".png", "_%s_res%d.png"%(direction, idx)))
     # shadow = (np.array(res).mean(axis = -1) < 127).astype(float)
     # shadow[flat_mask] = 1
     res_np = (np.array(res).mean(axis = -1) / 255) >= 0.65
@@ -303,10 +303,10 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = N
         Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_blend%d.png"%(direction, seed, idx)))
     
     # make the shadow region less dark
-    if seed is None:
-        Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
-    else:
-        Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_shadow%d.png"%(direction, seed, idx)))
+    # if seed is None:
+    #     Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
+    # else:
+    #     Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_shadow%d.png"%(direction, seed, idx)))
     
 
 def parse_args(input_args=None):
