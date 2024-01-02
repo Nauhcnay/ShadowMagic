@@ -109,19 +109,19 @@ def predict_single(args, prompt, path_to_image,
     if args.enable_xformers_memory_efficient_attention:
         pipeline.enable_xformers_memory_efficient_attention()
 
-    if args.seed is None:
-        generator = None
-    elif args.seed == -1:
-        seed = random.randint(0,4294967295)
-        generator = torch.Generator(device=device).manual_seed(seed)
-    else:
-        generator = torch.Generator(device=device).manual_seed(args.seed)
-
     # predict 4 outputs for each input image
     images = []
     seeds = []
     for _ in range(args.num_validation_images):
         with torch.autocast("cuda"):
+            generator = torch.Generator(device=device)
+            if args.seed is None:
+                generator = None
+            elif args.seed == -1:
+                seed = generator.seed()
+                generator = generator.manual_seed(seed)
+            else:
+                generator = generator.manual_seed(args.seed)
             image = pipeline(
                 validation_prompt, validation_image, 
                 num_inference_steps=args.num_inference_steps, 
