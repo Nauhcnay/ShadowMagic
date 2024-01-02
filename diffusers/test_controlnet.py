@@ -241,7 +241,7 @@ def main(args):
         return "add shadow from %s lighting and remove color"%direction, direction
 
     for img in os.listdir(args.img):
-        if 'png' not in img or 'color' in img: continue
+        if 'png' not in img or 'color' in img or 'line' in img: continue
         print("log:\topening %s"%img)
         # for d in dirs:
         # if 'line' in img:
