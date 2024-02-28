@@ -322,8 +322,8 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--pretrained_model_name_or_path",
         type=str,
-        # default="stablediffusionapi/divineelegancemix",
-        default="./checkpoints/divineelegancemix_2x/checkpoint-14000/",
+        default="stablediffusionapi/divineelegancemix",
+        # default="./checkpoints/divineelegancemix_2x/checkpoint-14000/",
         help="Path to pretrained model or model identifier from huggingface.co/models.",
     )
     parser.add_argument(
