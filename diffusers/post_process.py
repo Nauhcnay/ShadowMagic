@@ -195,8 +195,9 @@ def decrease_shadow(shadow, line):
 #     flat_refined, _ =  fillmap_to_color(fill, color_map)
 #     Image.fromarray(flat[0]).save(join('./results/', img))
 
-display_img(
-    "./results/image143_color.png", 
-    "./results/image143_color_left_shadow1.png", 
-    "./results/image143_line.png", 
-    "./results/image143_flat.npy")
+if __name__ == '__main__':
+    display_img(
+        "./results/image143_color.png", 
+        "./results/image143_color_left_shadow1.png", 
+        "./results/image143_line.png", 
+        "./results/image143_flat.npy")
