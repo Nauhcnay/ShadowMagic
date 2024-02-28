@@ -343,7 +343,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--controlnet_model_name_or_path",
         type=str,
-        default="./pretrained/divineelegancemix_2x",
+        default="./checkpoints/divineelegancemix_2x/checkpoint-14000/",
         help="Path to pretrained controlnet model or model identifier from huggingface.co/models."
         " If not specified controlnet weights are initialized from unet.",
     )
@@ -369,7 +369,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--num_validation_images",
         type=int,
-        default=2,
+        default=4,
         help="Number of images to be generated for each `--validation_image`, `--validation_prompt` pair",
     )
     parser.add_argument(
@@ -384,7 +384,11 @@ def parse_args(input_args=None):
         default=7.5,
         help="A higher guidance scale value encourages the model to generate images closely linked to the text prompt at the expense of lower image quality.",
     )
-    parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
+    parser.add_argument(
+        "--seed", 
+        type=int, 
+        default=None, 
+        help="A seed for reproducible training.")
 
     args = parser.parse_args()
     return args
@@ -420,7 +424,6 @@ def run_single(user, flat, line, color, name, direction = 'left'):
         weight_dtype,
         args,
         direction)
-
     return shadows
 
 def main(args):

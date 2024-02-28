@@ -16,11 +16,6 @@ K = np.array([
         [1,1,1], 
         [0,1,0], 
         ]).astype(float)
-# K = np.array([
-#         [0,0,0], 
-#         [0,1,0], 
-#         [0,0,0], 
-#         ]).astype(float)
 
 def display_img(img, shadow, line, flat, resize_to = 1024):
     # read images
@@ -120,7 +115,7 @@ def increase_shadow(shadow, line):
     shadow[added] = True
     return shadow
 
-def decrease_shadow(shadow, line):
+def decrease_shadow_erosion(shadow, line):
     # erosion based shadow decreasing
     shadow = shadow.copy()
     removed = np.zeros(shadow.shape).astype(bool)
@@ -133,7 +128,7 @@ def decrease_shadow(shadow, line):
 
 # https://stackoverflow.com/questions/29731726/how-to-calculate-a-gaussian-kernel-matrix-efficiently-in-numpy
 def gkern(l=5, sig=1.):
-    """\
+    """
     creates gaussian kernel with side length `l` and a sigma of `sig`
     """
     ax = np.linspace(-(l - 1) / 2., (l - 1) / 2., l)
@@ -153,8 +148,10 @@ def decrease_shadow_gaussian(shadow, line, bg_mask, iters = 3):
     # add this blur to make the shadow edge smooth
     return conv(shadow_conv, K, mode='same')
 
-def to_blend_shadow(shadow, thr = 0.9, smoothing = False):
+def to_blend_shadow(shadow, thr = 0.9, smoothing = True, for_psd = False):
     res = np.zeros(shadow.shape)
+    # binarize the shadow
+    shadow = (shadow >= thr).astype(float)
     if smoothing:
         ## add post process as Ray's suggestion
         shadow_conv = conv(shadow.astype(np.uint8), K, mode = 'same')
@@ -164,10 +161,27 @@ def to_blend_shadow(shadow, thr = 0.9, smoothing = False):
     else:
         res[shadow >= thr] = 0.5
         res[shadow < thr] = 1
+    # convert to array with transparency
+    if for_psd:
+        res_ = np.ones((res.shape[0], res.shape[1], 4)) * 255
+        res_[..., 3] = res * 255
+        res = res_
     return res
 
 def to_binary_shadow(shadow):
     return shadow != 255  
+
+def decrease_shadow(shadow, line):
+    # preprocess line map 
+    line = skeletonize(line.astype(bool))
+    line[0,:] = 1
+    line[-1,:] = 1
+    line[:, 0] = 1
+    line[:, -1] = 1
+    bg_mask = ~shadow
+    # decrease shadow 
+    shadow = decrease_shadow_gaussian(shadow, line, bg_mask, iters = 3)
+    return to_blend_shadow(shadow, for_psd =  True)
 
 # refine all flat regions in the results folder
 # for img in os.listdir('./results/'):
