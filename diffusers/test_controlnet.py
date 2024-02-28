@@ -241,7 +241,7 @@ def predict_and_extract_shadow( path_to_img, img,vae, text_encoder, tokenizer, u
     else:
         raise ValueError('not supported input %s!'%img)
 
-    mask = flat.mean(axis = -1) == 255
+    
     imgs, seeds = predict_single(args,
         [prompt, args.prompt_neg], input_img_path,
         vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, args.prompt_aux)
@@ -252,10 +252,11 @@ def predict_and_extract_shadow( path_to_img, img,vae, text_encoder, tokenizer, u
     img_raw.save(out_path / img.replace('flat', 'color'))
     shadows = []
     for i in range(len(imgs)):
-        shadows.append(extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, mask, line, seeds[i]))
+        shadows.append(extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, flat, line, seeds[i]))
     return shadows
 
-def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = None, seed = None, to_png = True):
+def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, seed = None, to_png = True):
+    flat_mask = flat.mean(axis = -1) == 255
     res_np = (np.array(res).mean(axis = -1) / 255) >= 0.65
     res_np[flat_mask] = True
     if line is not None:
@@ -321,7 +322,8 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--pretrained_model_name_or_path",
         type=str,
-        default="stablediffusionapi/divineelegancemix",
+        # default="stablediffusionapi/divineelegancemix",
+        default="./checkpoints/divineelegancemix_2x/checkpoint-14000/",
         help="Path to pretrained model or model identifier from huggingface.co/models.",
     )
     parser.add_argument(
@@ -343,7 +345,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--controlnet_model_name_or_path",
         type=str,
-        default="./checkpoints/divineelegancemix_2x/checkpoint-14000/",
+        default="./checkpoints/divineelegancemix_2x/checkpoint-14000/controlnet",
         help="Path to pretrained controlnet model or model identifier from huggingface.co/models."
         " If not specified controlnet weights are initialized from unet.",
     )
