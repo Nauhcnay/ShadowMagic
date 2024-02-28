@@ -282,7 +282,7 @@ def predict_and_extract_shadow(
     return shadows
 
 def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, seed = None, to_png = True):
-    flat_mask = flat.mean(axis = -1) == 255
+    flat_mask = flat.mean(axis = -1) == 0
     res_np = (np.array(res).mean(axis = -1) / 255) >= 0.65
     res_np[flat_mask] = True
     if line is not None:
@@ -303,8 +303,10 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, 
     
     print("log:\trefine predicted shadow")
     # convert flat to fill
-    fill = flat_to_fillmap(flat, False)
+    fill, _ = flat_to_fillmap(flat, False)
+    Image.fromarray(res_np).save("aa.png")
     res_np = shadow_refine_2nd(fill, res_np, line)
+    Image.fromarray(res_np).save("bb.png")
 
     # convert shadow flag map into shadows
     res_np = res_np.astype(float)
