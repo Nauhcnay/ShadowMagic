@@ -35,6 +35,10 @@ from diffusers.utils.import_utils import is_xformers_available
 
 from post_process import shadow_refine_2nd
 
+import sys 
+sys.path.append("../wgan/")
+from utils.preprocess import flat_to_fillmap
+
 check_min_version("0.22.0.dev0")
 
 def import_model_class_from_model_name_or_path(pretrained_model_name_or_path: str, revision: str):
@@ -229,7 +233,19 @@ def gen_prompt_color(dirs):
         direction = random.sample(dirs, k = 1)[0]
     return "add shadow from %s lighting and remove color"%direction, direction
 
-def predict_and_extract_shadow( path_to_img, img,vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype,args,direction = 'left'):
+def predict_and_extract_shadow( 
+    path_to_img, 
+    img,
+    vae, 
+    text_encoder, 
+    tokenizer, 
+    unet, 
+    controlnet, 
+    device, 
+    weight_dtype,
+    args,
+    direction = 'left',
+    to_png = True):
     print("log:\topening %s"%img)
     if 'flat' in img:
         prompt, direction = gen_prompt_color(direction)
@@ -252,7 +268,17 @@ def predict_and_extract_shadow( path_to_img, img,vae, text_encoder, tokenizer, u
     img_raw.save(out_path / img.replace('flat', 'color'))
     shadows = []
     for i in range(len(imgs)):
-        shadows.append(extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, flat, line, seeds[i]))
+        shadows.append(extract_shadow(
+            imgs[i], 
+            img_raw, 
+            img.replace('flat', 'color'), 
+            direction, 
+            i, 
+            out_path,
+            flat, 
+            line,
+            seeds[i],
+            to_png = to_png))
     return shadows
 
 def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, seed = None, to_png = True):
@@ -275,7 +301,10 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, 
             if m.sum() < 1000:
                 res_np[m] = False
     
-    res_np = shadow_refine_2nd(flat, res_np, line)
+    print("log:\trefine predicted shadow")
+    # convert flat to fill
+    fill = flat_to_fillmap(flat, False)
+    res_np = shadow_refine_2nd(fill, res_np, line)
 
     # convert shadow flag map into shadows
     res_np = res_np.astype(float)
@@ -402,9 +431,11 @@ def run_single(user, flat, line, color, name, direction = 'left'):
     if os.exists(temp_folder) == False:
         os.makedirs(temp_folder)
     name_flat = name+'_flat.png'
+    # for debug
     Image.fromarray(flat).save(temp_folder/(name+'_flat.png'))
     Image.fromarray(line).save(temp_folder/(name+'_line.png'))
     Image.fromarray(color).save(temp_folder/(name+'_color.png'))
+    
     path_to_img = temp_folder
     assert path_to_img.is_dir()
     img = name_flat
@@ -425,7 +456,8 @@ def run_single(user, flat, line, color, name, direction = 'left'):
         device, 
         weight_dtype,
         args,
-        direction)
+        direction,
+        to_png = False)
     return shadows
 
 def main(args):
@@ -442,6 +474,7 @@ def main(args):
     for img in os.listdir(args.img):
         if 'png' not in img or 'color' in img or 'line' in img: continue
         # for d in dirs:
+        d = 'left'
         predict_and_extract_shadow(
             path_to_img, 
             img,
@@ -453,7 +486,7 @@ def main(args):
             device, 
             weight_dtype,
             args,
-            direction = 'left')
+            direction = d)
 
 if __name__ == '__main__':
     main(parse_args())

@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 
 
-def thinning(fillmap, max_iter=100):
+def thinning(fillmap, max_iter=200):
     """Fill area of line with surrounding fill color.
 
     # Arguments

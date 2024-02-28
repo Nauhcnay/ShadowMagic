@@ -7,7 +7,7 @@ import numpy as np
 
 from PIL import Image
 from scipy.signal import convolve2d as conv
-from utils.preprocess import flat_to_fillmap, fillmap_to_color
+from utils.preprocess import flat_to_fillmap, fillmap_to_color, flat_refine
 from os.path import join
 from skimage.morphology import skeletonize
 
@@ -70,13 +70,13 @@ def display_img(img, shadow, line, flat, resize_to = 1024):
             break
     cv2.destroyAllWindows()
 
-def shadow_refine_2nd(flat, shadow, line):
+def shadow_refine_2nd(fill, shadow, line):
     shadow = shadow.astype(bool)
     # remove all bleeding shadow regions
     shadow_fill = np.zeros(shadow.shape).astype(int)
     fill_num = 1
-    for r in np.unique(flat):   
-        mask_per_flat = flat == r
+    for r in np.unique(fill):   
+        mask_per_flat = fill == r
         ss = shadow.copy()
         ss[~mask_per_flat] = False
         _, shadows = cv2.connectedComponents(ss.astype(np.uint8), connectivity = 4)
@@ -183,19 +183,17 @@ def decrease_shadow(shadow, line):
     shadow = decrease_shadow_gaussian(shadow, line, bg_mask, iters = 3)
     return to_blend_shadow(shadow, for_psd =  True)
 
-# refine all flat regions in the results folder
-# for img in os.listdir('./results/'):
-#     if 'flat' not in img or 'png' not in img: continue
-#     print('log:\topening %s'%img)
-#     flat = np.array(Image.open(join('./results/', img)))
-#     line = np.array(Image.open(join('./results/', img.replace('flat', 'line')))).mean(axis = -1)
-#     fill, color_map = flat_to_fillmap(flat, True)
-#     np.save(join('./results/', img.replace('.png', '.npy')), fill)
-
-#     flat_refined, _ =  fillmap_to_color(fill, color_map)
-#     Image.fromarray(flat[0]).save(join('./results/', img))
-
 if __name__ == '__main__':
+    # refine all flat regions in the results folder
+    for img in os.listdir('./results/'):
+        if 'flat' not in img or 'png' not in img: continue
+        print('log:\topening %s'%img)
+        flat = np.array(Image.open(join('./results/', img)))
+        line = np.array(Image.open(join('./results/', img.replace('flat', 'line')))).mean(axis = -1)
+        flat_refined, fill = flat_refine(flat, line)
+        # np.save(join('./results/', img.replace('.png', '.npy')), fill)
+        Image.fromarray(flat_refined).save(join('./results/', img))
+
     display_img(
         "./results/image143_color.png", 
         "./results/image143_color_left_shadow1.png", 
