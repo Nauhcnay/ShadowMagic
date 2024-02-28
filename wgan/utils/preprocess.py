@@ -4,6 +4,7 @@
 3. shading layers to real GT
 4. create training dataset
 '''
+import tqdm
 import os
 import numpy as np
 import cv2
@@ -160,7 +161,7 @@ def flat_to_fillmap(flat, second_pass = True):
     th1 = h * w *5e-6
     th2 = h * w *5e-4
     # first pass
-    for c in np.unique(color_channel):
+    for c in tqdm(np.unique(color_channel)):
         if c == -1: continue # skip transparent color
         if c == 0: continue # skip black color, it should be the line drawing
         # check if this region should be transparent
@@ -265,14 +266,17 @@ def flat_refine(flat, line = None, second_pass = True):
         flat_a = flat[:,:,3]
         flat[:,:,:3] = flat[:,:,:3] * np.repeat(np.expand_dims((flat_a == 255).astype(int), -1),3,-1)
     # convert flat to fill map
+    print('log:\tconvert flat color into fill map')
     fill, color_map = flat_to_fillmap(flat, second_pass)
     # set line drawing into the fill map
     fill[(255 - line_gray).astype(bool)] = 1
     ## remove stray regions
+    print('log:\tremoving small flat regions')
     for r in np.unique(fill):
         mask = fill == r
         if mask.sum() < 10:
             fill[mask] = 1
+    print('log:\tfinalizing refinement')
     fill = thinning(fill)
     flat_refined, _ =  fillmap_to_color(fill, color_map)
     return flat_refined, fill

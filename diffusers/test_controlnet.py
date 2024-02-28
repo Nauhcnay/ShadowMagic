@@ -229,10 +229,6 @@ def main(args):
             direction = random.sample(dirs, k = 1)[0]
         return "add shadow from %s lighting"%direction, direction
     
-    # def gen_prompt_color():
-    #     return "add shadow from left and right lighting", "lr"
-
-    
     def gen_prompt_color(dirs):
         if isinstance(dirs, str):
             direction = dirs
@@ -272,9 +268,6 @@ def main(args):
             extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, mask, line, seeds[i])
 
 def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = None, seed = None):
-    # res.save(out_path/name.replace(".png", "_%s_res%d.png"%(direction, idx)))
-    # shadow = (np.array(res).mean(axis = -1) < 127).astype(float)
-    # shadow[flat_mask] = 1
     res_np = (np.array(res).mean(axis = -1) / 255) >= 0.65
     res_np[flat_mask] = True
     if line is not None:
@@ -292,6 +285,7 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = N
             m = regs == r
             if m.sum() < 1000:
                 res_np[m] = False
+    
     # convert shadow flag map into shadows
     res_np = res_np.astype(float)
     res_np[res_np == 0] = 0.5
