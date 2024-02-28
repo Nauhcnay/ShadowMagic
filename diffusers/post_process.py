@@ -71,6 +71,8 @@ def display_img(img, shadow, line, flat, resize_to = 1024):
     cv2.destroyAllWindows()
 
 def shadow_refine_2nd(fill, shadow, line):
+    h, w = shadow.shape[0], shadow.shape[1]
+    long_side = h if h > w else w
     shadow = shadow.astype(bool)
     # remove all bleeding shadow regions
     shadow_fill = np.zeros(shadow.shape).astype(int)
@@ -85,8 +87,10 @@ def shadow_refine_2nd(fill, shadow, line):
             mask_per_shadow = shadows == sr
             shadow_fill[mask_per_shadow] = fill_num
             fill_num += 1
-            mask_per_shadow_skel = skeletonize(mask_per_shadow)
-            if mask_per_shadow.sum() / mask_per_shadow_skel.sum() < 10:
+            # this makes the function extremely slow!
+            # mask_per_shadow_skel = skeletonize(mask_per_shadow)
+            # if mask_per_shadow.sum() / mask_per_shadow_skel.sum() < 10:
+            if mask_per_shadow.sum() < (300 * (long_side / 1024)):
                 shadow[mask_per_shadow] = False
     
     # fill all small holes
@@ -101,7 +105,7 @@ def shadow_refine_2nd(fill, shadow, line):
         mask_per_hole = holes == h
         shadow_fill[mask_per_hole] = fill_num
         fill_num += 1
-        if mask_per_hole.sum() < 300:
+        if mask_per_hole.sum() < (300 * (long_side / 1024)):
             shadow[mask_per_hole] = True
     shadow = shadow | (line == 1)
     return shadow
@@ -185,14 +189,14 @@ def decrease_shadow(shadow, line):
 
 if __name__ == '__main__':
     # refine all flat regions in the results folder
-    for img in os.listdir('./results/'):
-        if 'flat' not in img or 'png' not in img: continue
-        print('log:\topening %s'%img)
-        flat = np.array(Image.open(join('./results/', img)))
-        line = np.array(Image.open(join('./results/', img.replace('flat', 'line')))).mean(axis = -1)
-        flat_refined, fill = flat_refine(flat, line)
-        # np.save(join('./results/', img.replace('.png', '.npy')), fill)
-        Image.fromarray(flat_refined).save(join('./results/', img))
+    # for img in os.listdir('./results/'):
+    #     if 'flat' not in img or 'png' not in img: continue
+    #     print('log:\topening %s'%img)
+    #     flat = np.array(Image.open(join('./results/', img)))
+    #     line = np.array(Image.open(join('./results/', img.replace('flat', 'line')))).mean(axis = -1)
+    #     flat_refined, fill = flat_refine(flat, line)
+    #     # np.save(join('./results/', img.replace('.png', '.npy')), fill)
+    #     Image.fromarray(flat_refined).save(join('./results/', img))
 
     display_img(
         "./results/image143_color.png", 

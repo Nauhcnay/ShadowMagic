@@ -326,7 +326,6 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, 
     res_np = (res_np*255).astype(np.uint8)
     return res_np
 
-    
 def parse_args(input_args=None):
     parser = argparse.ArgumentParser(description="ShadowMagic SD backend v0.1")
     parser.add_argument(
