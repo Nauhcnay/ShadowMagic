@@ -305,7 +305,7 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, 
     # convert flat to fill
     fill, _ = flat_to_fillmap(flat, False)
     Image.fromarray(res_np).save("aa.png")
-    res_np = shadow_refine_2nd(fill, res_np, line)
+    res_np = shadow_refine_2nd(fill, res_np, line < 0.5)
     Image.fromarray(res_np).save("bb.png")
 
     # convert shadow flag map into shadows
