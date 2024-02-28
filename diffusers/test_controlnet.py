@@ -283,23 +283,23 @@ def predict_and_extract_shadow(
 
 def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, seed = None, to_png = True):
     flat_mask = flat.mean(axis = -1) == 0
-    res_np = (np.array(res).mean(axis = -1) / 255) >= 0.65
-    res_np[flat_mask] = True
-    if line is not None:
-        line_mask = line < 0.2
-        res_np[line_mask] = True
-        # remove stray shadow regions
-        _, regs = cv2.connectedComponents((~res_np).astype(np.uint8), connectivity=4)
-        for r in np.unique(regs):
-            m = regs == r
-            if m.sum() < 1000:
-                res_np[m] = True
-        # remvoe stray light regions
-        _, regs = cv2.connectedComponents(res_np.astype(np.uint8), connectivity=4)
-        for r in np.unique(regs):
-            m = regs == r
-            if m.sum() < 1000:
-                res_np[m] = False
+    res_np = (np.array(res).mean(axis = -1) / 255) < 0.65
+    res_np[flat_mask] = False
+    # if line is not None:
+    #     line_mask = line < 0.2
+    #     res_np[line_mask] = True
+    #     # remove stray shadow regions
+    #     _, regs = cv2.connectedComponents((~res_np).astype(np.uint8), connectivity=4)
+    #     for r in np.unique(regs):
+    #         m = regs == r
+    #         if m.sum() < 1000:
+    #             res_np[m] = True
+    #     # remvoe stray light regions
+    #     _, regs = cv2.connectedComponents(res_np.astype(np.uint8), connectivity=4)
+    #     for r in np.unique(regs):
+    #         m = regs == r
+    #         if m.sum() < 1000:
+    #             res_np[m] = False
     
     print("log:\trefine predicted shadow")
     # convert flat to fill
