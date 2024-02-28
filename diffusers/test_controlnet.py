@@ -33,6 +33,8 @@ from diffusers.optimization import get_scheduler
 from diffusers.utils import check_min_version
 from diffusers.utils.import_utils import is_xformers_available
 
+from post_process import shadow_refine_2nd
+
 check_min_version("0.22.0.dev0")
 
 def import_model_class_from_model_name_or_path(pretrained_model_name_or_path: str, revision: str):
@@ -54,10 +56,7 @@ def import_model_class_from_model_name_or_path(pretrained_model_name_or_path: st
     else:
         raise ValueError(f"{model_class} is not supported.")
 
-def predict_single(args, prompt, path_to_image, 
-                    vae, text_encoder, tokenizer, unet, 
-                    controlnet, device, weight_dtype, 
-                    auxiliary_prompt = None):
+def predict_single(args, prompt, path_to_image, vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, auxiliary_prompt = None):
     path_to_realesrgan = Path("Real-ESRGAN")
     if path_to_realesrgan.exists() == False:
         os.system("git clone https://github.com/xinntao/Real-ESRGAN")
@@ -150,7 +149,7 @@ def predict_single(args, prompt, path_to_image,
                 seeds.append(args.seed)
     return images, seeds
 
-def main(args):
+def init_controlnet(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # device = 'cpu'
     # Load the tokenizer
@@ -214,60 +213,49 @@ def main(args):
     vae.to(device, dtype=weight_dtype)
     unet.to(device, dtype=weight_dtype)
     text_encoder.to(device, dtype=weight_dtype)
+    return vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype
 
-    # output prediction
-    path_to_img = Path(args.img)
-    assert path_to_img.is_dir()
+def gen_prompt_line(dirs):
+    if isinstance(dirs, str):
+        direction = dirs
+    else:    
+        direction = random.sample(dirs, k = 1)[0]
+    return "add shadow from %s lighting"%direction, direction
 
-    # dirs = ['left', 'right', "top", "back"]
-    dirs = ['left', 'right']
+def gen_prompt_color(dirs):
+    if isinstance(dirs, str):
+        direction = dirs
+    else:    
+        direction = random.sample(dirs, k = 1)[0]
+    return "add shadow from %s lighting and remove color"%direction, direction
 
-    def gen_prompt_line(dirs):
-        if isinstance(dirs, str):
-            direction = dirs
-        else:    
-            direction = random.sample(dirs, k = 1)[0]
-        return "add shadow from %s lighting"%direction, direction
-    
-    def gen_prompt_color(dirs):
-        if isinstance(dirs, str):
-            direction = dirs
-        else:    
-            direction = random.sample(dirs, k = 1)[0]
-        return "add shadow from %s lighting and remove color"%direction, direction
+def predict_and_extract_shadow( path_to_img, img,vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype,args,direction = 'left'):
+    print("log:\topening %s"%img)
+    if 'flat' in img:
+        prompt, direction = gen_prompt_color(direction)
+        input_img_path = path_to_img / img.replace('flat', 'color')
+        flat = np.array(Image.open(path_to_img / img).convert("RGB"))
+        line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).mean(axis = -1).astype(float) / 255
+        if input_img_path.exists() is False:
+            Image.fromarray((flat * line).astype(np.uint8)).save(input_img_path)
+    else:
+        raise ValueError('not supported input %s!'%img)
 
-    for img in os.listdir(args.img):
-        if 'png' not in img or 'color' in img or 'line' in img: continue
-        print("log:\topening %s"%img)
-        # for d in dirs:
-        # if 'line' in img:
-        #     prompt, direction = gen_prompt_line(d)
-        #     input_img_path = path_to_img / img
-        #     flat = np.array(Image.open(path_to_img / img.replace('line', 'flat')).convert("RGB"))
-        #     line = np.array(Image.open(path_to_img / img).convert("RGB")).mean(axis = -1).astype(float) / 255
-        if 'flat' in img:
-            prompt, direction = gen_prompt_color("left")
-            input_img_path = path_to_img / img.replace('flat', 'color')
-            flat = np.array(Image.open(path_to_img / img).convert("RGB"))
-            line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).mean(axis = -1).astype(float) / 255
-            if input_img_path.exists() is False:
-                Image.fromarray((flat * line).astype(np.uint8)).save(input_img_path)
-        else:
-            raise ValueError('not supported input %s!'%img)
+    mask = flat.mean(axis = -1) == 255
+    imgs, seeds = predict_single(args,
+        [prompt, args.prompt_neg], input_img_path,
+        vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, args.prompt_aux)
 
-        mask = flat.mean(axis = -1) == 255
-        imgs, seeds = predict_single(args,
-            [prompt, args.prompt_neg], input_img_path,
-            vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype, args.prompt_aux)
+    # extract shadow layer and save results
+    out_path = Path('results')
+    img_raw = Image.open(input_img_path)
+    img_raw.save(out_path / img.replace('flat', 'color'))
+    shadows = []
+    for i in range(len(imgs)):
+        shadows.append(extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, mask, line, seeds[i]))
+    return shadows
 
-        # extract shadow layer and save results
-        out_path = Path('results')
-        img_raw = Image.open(input_img_path)
-        img_raw.save(out_path / img.replace('flat', 'color'))
-        for i in range(len(imgs)):
-            extract_shadow(imgs[i], img_raw, img.replace('flat', 'color'), direction, i, out_path, mask, line, seeds[i])
-
-def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = None, seed = None):
+def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = None, seed = None, to_png = True):
     res_np = (np.array(res).mean(axis = -1) / 255) >= 0.65
     res_np[flat_mask] = True
     if line is not None:
@@ -286,20 +274,26 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat_mask, line = N
             if m.sum() < 1000:
                 res_np[m] = False
     
+    res_np = shadow_refine_2nd(flat, res_np, line)
+
     # convert shadow flag map into shadows
     res_np = res_np.astype(float)
     res_np[res_np == 0] = 0.5
     img_np = np.array(img)
     
-    if seed is None:
-        Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
-    else:
-        Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_blend%d.png"%(direction, seed, idx)))
-    
-    if seed is None:
-        Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
-    else:
-        Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_shadow%d.png"%(direction, seed, idx)))
+    if to_png:
+        if seed is None:
+            Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
+        else:
+            Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_blend%d.png"%(direction, seed, idx)))
+        
+        if seed is None:
+            Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
+        else:
+            Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_shadow%d.png"%(direction, seed, idx)))
+    res_np = (res_np*255).astype(np.uint8)
+    return res_np
+
     
 def parse_args(input_args=None):
     parser = argparse.ArgumentParser(description="ShadowMagic SD backend v0.1")
@@ -394,6 +388,67 @@ def parse_args(input_args=None):
 
     args = parser.parse_args()
     return args
+
+def run_single(user, flat, line, color, name, direction = 'left'):
+    # set up running folder
+    temp_folder = Path("temp_per_user")
+    temp_folder = temp_folder / user
+    if os.exists(temp_folder) == False:
+        os.makedirs(temp_folder)
+    name_flat = name+'_flat.png'
+    Image.fromarray(flat).save(temp_folder/(name+'_flat.png'))
+    Image.fromarray(line).save(temp_folder/(name+'_line.png'))
+    Image.fromarray(color).save(temp_folder/(name+'_color.png'))
+    path_to_img = temp_folder
+    assert path_to_img.is_dir()
+    img = name_flat
+
+    # init network
+    args = parse_args()
+    vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype = init_controlnet(args)
+
+    # predict
+    shadows = predict_and_extract_shadow(
+        path_to_img, 
+        img,
+        vae, 
+        text_encoder, 
+        tokenizer, 
+        unet, 
+        controlnet, 
+        device, 
+        weight_dtype,
+        args,
+        direction)
+
+    return shadows
+
+def main(args):
+    # wrap all init codes into one function
+    vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype = init_controlnet(args)
+    
+    # output prediction
+    path_to_img = Path(args.img)
+    assert path_to_img.is_dir()
+
+    dirs = ['left', 'right', "top", "back"]
+    # dirs = ['left', 'right']
+
+    for img in os.listdir(args.img):
+        if 'png' not in img or 'color' in img or 'line' in img: continue
+        # for d in dirs:
+        predict_and_extract_shadow(
+            path_to_img, 
+            img,
+            vae, 
+            text_encoder, 
+            tokenizer, 
+            unet, 
+            controlnet, 
+            device, 
+            weight_dtype,
+            args,
+            direction = 'left')
 
 if __name__ == '__main__':
     main(parse_args())

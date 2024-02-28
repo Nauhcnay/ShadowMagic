@@ -52,14 +52,31 @@ def display_img(img, shadow, line, flat, resize_to = 1024):
         shadow = cv2.resize(shadow.astype(np.uint8), (w_new, h_new), interpolation = cv2.INTER_NEAREST)
         flat = cv2.resize(flat.astype(np.uint8), (w_new, h_new), interpolation = cv2.INTER_NEAREST)
         line = cv2.resize(line.astype(np.uint8), (w_new, h_new), interpolation = cv2.INTER_NEAREST).astype(float)
-    shadow = shadow.astype(bool)
+
+    shadow = shadow_refine_2nd(flat, shadow, line)
+    bg_mask = ~shadow
     # add boundary to line
     line[0,:] = 1
     line[-1,:] = 1
     line[:, 0] = 1
     line[:, -1] = 1
-    
-    
+    line = skeletonize(line.astype(bool))
+
+    # shadow_fill, _ = fillmap_to_color(shadow_fill)
+    while True:
+        res = (img * to_blend_shadow(shadow)[..., np.newaxis]).astype(np.uint8)
+        cv2.imshow('results',res)
+        k = cv2.waitKey(100)
+        if k == ord('a'):
+            shadow = decrease_shadow_gaussian(shadow, line, bg_mask)
+        elif k == ord('d'):
+            shadow = increase_shadow(shadow, line)
+        elif k == ord('q'):
+            break
+    cv2.destroyAllWindows()
+
+def shadow_refine_2nd(flat, shadow, line):
+    shadow = shadow.astype(bool)
     # remove all bleeding shadow regions
     shadow_fill = np.zeros(shadow.shape).astype(int)
     fill_num = 1
@@ -92,22 +109,7 @@ def display_img(img, shadow, line, flat, resize_to = 1024):
         if mask_per_hole.sum() < 300:
             shadow[mask_per_hole] = True
     shadow = shadow | (line == 1)
-    bg_mask = ~shadow
-    
-    line = skeletonize(line.astype(bool))
-
-    # shadow_fill, _ = fillmap_to_color(shadow_fill)
-    while True:
-        res = (img * to_blend_shadow(shadow)[..., np.newaxis]).astype(np.uint8)
-        cv2.imshow('results',res)
-        k = cv2.waitKey(100)
-        if k == ord('a'):
-            shadow = decrease_shadow_gaussian(shadow, line, bg_mask)
-        elif k == ord('d'):
-            shadow = increase_shadow(shadow, line)
-        elif k == ord('q'):
-            break
-    cv2.destroyAllWindows()
+    return shadow
 
 def increase_shadow(shadow, line):
     shadow = shadow.copy()
@@ -148,7 +150,7 @@ def decrease_shadow_gaussian(shadow, line, bg_mask, iters = 3):
         shadow_conv = conv(shadow_conv, K, mode='same')
     shadow_conv[bg_mask] = 0
     shadow_conv[shadow_conv < 0.7] = 0
-    print("log:\tdecreasing shadow once.")
+    # add this blur to make the shadow edge smooth
     return conv(shadow_conv, K, mode='same')
 
 def to_blend_shadow(shadow, thr = 0.9, smoothing = False):
@@ -163,7 +165,6 @@ def to_blend_shadow(shadow, thr = 0.9, smoothing = False):
         res[shadow >= thr] = 0.5
         res[shadow < thr] = 1
     return res
-    # return cv2.blur(res,(3,3)) 
 
 def to_binary_shadow(shadow):
     return shadow != 255  
