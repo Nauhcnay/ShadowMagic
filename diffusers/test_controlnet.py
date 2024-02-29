@@ -252,7 +252,7 @@ def predict_and_extract_shadow(
         input_img_path = path_to_img / img.replace('flat', 'color')
         flat = np.array(Image.open(path_to_img / img))
         if flat.shape[-1] == 4:
-            bg = np.ones((flat.shape[0], flat.shape[1], 3))
+            bg = np.ones((flat.shape[0], flat.shape[1], 3)) * 255
             alpha = flat[..., -1][..., np.newaxis] / 255
             rgb = flat[..., 0:3]
             flat = rgb * alpha + bg * (1 - alpha)
