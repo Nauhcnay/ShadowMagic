@@ -263,7 +263,7 @@ def predict_and_extract_shadow(
             Image.fromarray(line.astype(np.uint8)).save(path_to_img / img.replace('flat', 'line'))
             line = line.astype(float) / 255
         else:
-            line = line.convert("RGB").mean(axis = -1).astype(float) / 255
+            line = line.mean(axis = -1).astype(float) / 255
         if input_img_path.exists() is False:
             Image.fromarray((flat * line[..., np.newaxis]).astype(np.uint8)).save(input_img_path)
     else:
