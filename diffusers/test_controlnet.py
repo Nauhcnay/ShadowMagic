@@ -478,20 +478,20 @@ def main(args):
 
     for img in os.listdir(args.img):
         if 'png' not in img or 'color' in img or 'line' in img: continue
-        # for d in dirs:
-        d = 'left'
-        predict_and_extract_shadow(
-            path_to_img, 
-            img,
-            vae, 
-            text_encoder, 
-            tokenizer, 
-            unet, 
-            controlnet, 
-            device, 
-            weight_dtype,
-            args,
-            direction = d)
+        # d = 'left'
+        for d in dirs:
+            predict_and_extract_shadow(
+                path_to_img, 
+                img,
+                vae, 
+                text_encoder, 
+                tokenizer, 
+                unet, 
+                controlnet, 
+                device, 
+                weight_dtype,
+                args,
+                direction = d)
 
 if __name__ == '__main__':
     main(parse_args())
