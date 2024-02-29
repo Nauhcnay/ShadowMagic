@@ -1,3 +1,5 @@
+import numpy as np
+from PIL import Image
 from aiohttp import web
 from test_controlnet import run_single
 
