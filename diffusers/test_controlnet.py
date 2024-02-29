@@ -430,7 +430,7 @@ def run_single(user, flat, line, color, name, direction = 'left'):
     # set up running folder
     temp_folder = Path("temp_per_user")
     temp_folder = temp_folder / user
-    if os.exists(temp_folder) == False:
+    if os.path.exists(temp_folder) == False:
         os.makedirs(temp_folder)
     name_flat = name+'_flat.png'
     # for debug
