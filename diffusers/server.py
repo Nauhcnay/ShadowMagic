@@ -58,7 +58,7 @@ def to_pil(byte):
 def main():
     app = web.Application(client_max_size = 1024 * 1024 ** 2)
     app.add_routes(routes)
-    web.run_app(app)
+    web.run_app(app, port=8000)
 
 if __name__ == '__main__':
     main()
