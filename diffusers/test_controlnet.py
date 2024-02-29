@@ -253,7 +253,7 @@ def predict_and_extract_shadow(
         flat = np.array(Image.open(path_to_img / img).convert("RGB"))
         line = np.array(Image.open(path_to_img / img.replace('flat', 'line')).convert("RGB")).mean(axis = -1).astype(float) / 255
         if input_img_path.exists() is False:
-            Image.fromarray((flat * line).astype(np.uint8)).save(input_img_path)
+            Image.fromarray((flat * line[..., np.newaxis]).astype(np.uint8)).save(input_img_path)
     else:
         raise ValueError('not supported input %s!'%img)
 
