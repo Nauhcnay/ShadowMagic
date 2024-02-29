@@ -333,6 +333,7 @@ def parse_args(input_args=None):
         "img",
         type=str,
         help="Path to validation image",
+        default = None
     )
     parser.add_argument(
         "--prompt_neg",
@@ -467,6 +468,7 @@ def main(args):
     vae, text_encoder, tokenizer, unet, controlnet, device, weight_dtype = init_controlnet(args)
     
     # output prediction
+    assert args.img is not None
     path_to_img = Path(args.img)
     assert path_to_img.is_dir()
 
