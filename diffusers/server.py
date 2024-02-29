@@ -8,7 +8,7 @@ from aiohttp import web
 from shadow_magic_api_async import run_single
 
 routes = web.RouteTableDef()
-# https://github.com/pytorch/pytorch/issues/1494
+__spec__ = None
 
 @routes.get('/')
 # seems the function name is not that important?
