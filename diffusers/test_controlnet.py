@@ -330,10 +330,11 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, 
 def parse_args(input_args=None):
     parser = argparse.ArgumentParser(description="ShadowMagic SD backend v0.1")
     parser.add_argument(
-        "img",
+        "--img",
         type=str,
         help="Path to validation image",
-        default = None
+        default = None,
+        required = False
     )
     parser.add_argument(
         "--prompt_neg",
