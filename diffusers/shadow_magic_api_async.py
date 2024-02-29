@@ -4,6 +4,12 @@ import functools
 
 import test_controlnet
 
+from multiprocessing import set_start_method
+try:
+    set_start_method('spawn')
+except RuntimeError:
+    pass
+    
 executor_batch = ProcessPoolExecutor(1)
 executor_interactive = ProcessPoolExecutor(1)
 

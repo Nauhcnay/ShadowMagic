@@ -8,11 +8,6 @@ from shadow_magic_api_async import run_single
 
 routes = web.RouteTableDef()
 # https://github.com/pytorch/pytorch/issues/1494
-from multiprocessing import set_start_method
-try:
-    set_start_method('spawn')
-except RuntimeError:
-    pass
 
 @routes.get('/')
 # seems the function name is not that important?
