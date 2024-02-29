@@ -9,7 +9,8 @@ try:
     set_start_method('spawn')
 except RuntimeError:
     pass
-    
+__spec__ = None
+
 executor_batch = ProcessPoolExecutor(1)
 executor_interactive = ProcessPoolExecutor(1)
 
