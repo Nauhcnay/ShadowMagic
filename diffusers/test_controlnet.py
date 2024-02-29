@@ -250,7 +250,13 @@ def predict_and_extract_shadow(
     if 'flat' in img:
         prompt, direction = gen_prompt_color(direction)
         input_img_path = path_to_img / img.replace('flat', 'color')
-        flat = np.array(Image.open(path_to_img / img).convert("RGB"))
+        flat = np.array(Image.open(path_to_img / img))
+        if flat.shape[-1] == 4:
+            bg = np.ones((flat.shape[0], flat.shape[1], 3))
+            alpha = flat[..., -1][..., np.newaxis] / 255
+            rgb = flat[..., 0:3]
+            flat = rgb * alpha + bg * (1 - alpha)
+            Image.fromarray(flat.astype(np.uint8)).save(path_to_img / img)
         line = np.array(Image.open(path_to_img / img.replace('flat', 'line')))
         if line.shape[-1] == 4:
             line = 255 - line[..., -1]
