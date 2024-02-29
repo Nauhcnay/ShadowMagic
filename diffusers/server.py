@@ -4,7 +4,7 @@ import io
 from io import BytesIO
 from PIL import Image
 from aiohttp import web
-from test_controlnet import run_single
+from shadow_magic_api_async import run_single
 
 routes = web.RouteTableDef()
 
@@ -30,7 +30,7 @@ async def shadowsingle( request ):
     user = str(data['user'])
     name = str(data['name'])
 
-    shadows = run_single(user, flat, line, color, name, direction)
+    shadows = await run_single(user, flat, line, color, name, direction)
 
     result = {}
     result['user'] = user
