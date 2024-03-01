@@ -33,7 +33,7 @@ from diffusers.optimization import get_scheduler
 from diffusers.utils import check_min_version
 from diffusers.utils.import_utils import is_xformers_available
 
-from post_process import shadow_refine_2nd
+from post_process import shadow_refine_2nd, gkern
 
 import sys 
 sys.path.append("../wgan/")
@@ -338,14 +338,14 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--prompt_neg",
         type=str,
-        default="messy shadow, large shadow",
+        default=None,
         required=False,
         help="Optional negative prompt that might enhance the generation result",
     )
     parser.add_argument(
         "--prompt_aux",
         type=str,
-        default="clean shadow, dynamic shdow, perfect shadow",
+        default=None,
         required=False,
         help="Optional auxiliary positive prompt that might enhance the generation result",
     )
@@ -473,11 +473,9 @@ def main(args):
     assert path_to_img.is_dir()
 
     dirs = ['left', 'right', "top", "back"]
-    # dirs = ['left', 'right']
 
     for img in os.listdir(args.img):
         if 'png' not in img or 'color' in img or 'line' in img: continue
-        # d = 'left'
         for d in dirs:
             predict_and_extract_shadow(
                 path_to_img, 
