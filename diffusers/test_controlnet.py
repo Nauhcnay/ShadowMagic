@@ -296,24 +296,9 @@ def predict_and_extract_shadow(
     return shadows
 
 def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, seed = None, to_png = True):
-    flat_mask = flat.mean(axis = -1) == 0
+    flat_mask = flat.mean(axis = -1) == 255
     res_np = (np.array(res).mean(axis = -1) / 255) < 0.65
     res_np[flat_mask] = False
-    # if line is not None:
-    #     line_mask = line < 0.2
-    #     res_np[line_mask] = True
-    #     # remove stray shadow regions
-    #     _, regs = cv2.connectedComponents((~res_np).astype(np.uint8), connectivity=4)
-    #     for r in np.unique(regs):
-    #         m = regs == r
-    #         if m.sum() < 1000:
-    #             res_np[m] = True
-    #     # remvoe stray light regions
-    #     _, regs = cv2.connectedComponents(res_np.astype(np.uint8), connectivity=4)
-    #     for r in np.unique(regs):
-    #         m = regs == r
-    #         if m.sum() < 1000:
-    #             res_np[m] = False
     
     print("log:\trefine predicted shadow")
     # convert flat to fill
@@ -353,14 +338,14 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--prompt_neg",
         type=str,
-        default=None,
+        default="messy shadow, large shadow",
         required=False,
         help="Optional negative prompt that might enhance the generation result",
     )
     parser.add_argument(
         "--prompt_aux",
         type=str,
-        default=None,
+        default="clean shadow, dynamic shdow, perfect shadow",
         required=False,
         help="Optional auxiliary positive prompt that might enhance the generation result",
     )
