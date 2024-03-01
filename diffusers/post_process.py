@@ -85,7 +85,7 @@ def shadow_refine_2nd(fill, shadow, line):
         for sr in np.unique(shadows):
             if sr == 0: continue
             mask_per_shadow = shadows == sr
-            mask_per_shadow = ~(mask_per_shadow & line) & mask_per_shadow 
+            mask_per_shadow = (~(mask_per_shadow & line)) & mask_per_shadow 
             shadow_fill[mask_per_shadow] = fill_num
             fill_num += 1
             # this makes the function extremely slow!
