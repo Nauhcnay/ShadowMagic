@@ -153,7 +153,7 @@ def flat_to_fillmap(flat, second_pass = True):
         alpha_channel = flat[:,:,3]
     else:
         alpha_channel = np.logical_or(np.logical_or(r != 255, g != 255), b != 255)
-    color_channel[alpha_channel == 255] = -1
+    color_channel[alpha_channel == 0] = -1
     fill = np.ones((h,w)) # assume transparent region as 0
     fill[alpha_channel == 0] = 0 # fill region starts at 2
     color_idx = 2
