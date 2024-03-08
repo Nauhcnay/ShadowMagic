@@ -296,7 +296,7 @@ def predict_and_extract_shadow(
     return shadows
 
 def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, seed = None, to_png = True):
-    flat_mask = flat.mean(axis = -1) == 255
+    flat_mask = flat.mean(axis = -1) != 255
     res_np = (np.array(res).mean(axis = -1) / 255) < 0.65
     res_np[flat_mask] = False
     
