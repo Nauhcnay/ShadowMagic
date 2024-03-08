@@ -309,9 +309,10 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, 
     # Image.fromarray(res_np).save("bb.png")
 
     # convert shadow flag map into shadows
-    res_np = res_np.astype(float)
-    res_np[res_np == 1] = 0.5
-    res_np[res_np == 0] = 1
+    # res_np = res_np.astype(float)
+    # res_np[res_np == 1] = 0.5
+    # res_np[res_np == 0] = 1
+    res_np = ~res_np
 
     img_np = np.array(img)
     
@@ -325,7 +326,7 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, 
             Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
         else:
             Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_shadow%d.png"%(direction, seed, idx)))
-    res_np = (res_np*255).astype(np.uint8)
+    # res_np = (res_np*255).astype(np.uint8)
     return res_np
 
 def parse_args(input_args=None):
@@ -435,7 +436,7 @@ def run_single(user, flat, line, color, name, direction = 'left'):
     temp_folder = temp_folder / user
     if os.path.exists(temp_folder) == False:
         os.makedirs(temp_folder)
-    name_flat = name+'_flat.png'
+    name_flat = name + '_flat.png'
     # for debug
     Image.fromarray(flat).save(temp_folder/(name+'_flat.png'))
     Image.fromarray(line).save(temp_folder/(name+'_line.png'))
