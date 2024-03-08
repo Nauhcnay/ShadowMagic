@@ -26,7 +26,8 @@ def display_img(img, shadow, line, flat, resize_to = 1024):
     if isinstance(line, str):
         line = cv2.imread(line)
     if isinstance(flat, str):
-        flat = np.load(flat)
+        flat = cv2.imread(flat)
+        flat, _ = flat_to_fillmap(flat)
     if len(shadow.shape) > 2:
         shadow = shadow.mean(axis = -1)
     # turn line into a mask which indicates the shadow boundary
@@ -48,14 +49,15 @@ def display_img(img, shadow, line, flat, resize_to = 1024):
         flat = cv2.resize(flat.astype(np.uint8), (w_new, h_new), interpolation = cv2.INTER_NEAREST)
         line = cv2.resize(line.astype(np.uint8), (w_new, h_new), interpolation = cv2.INTER_NEAREST).astype(float)
 
-    shadow = shadow_refine_2nd(flat, shadow, line)
-    bg_mask = ~shadow
+    # shadow = shadow_refine_2nd(flat, shadow, line)
+    bg_mask = ~(shadow.astype(bool))
     # add boundary to line
-    line[0,:] = 1
-    line[-1,:] = 1
-    line[:, 0] = 1
-    line[:, -1] = 1
+    line = line.astype(bool) & shadow.astype(bool)
     line = skeletonize(line.astype(bool))
+    line[0,:] = True
+    line[-1,:] = True
+    line[:, 0] = True
+    line[:, -1] = True
 
     # shadow_fill, _ = fillmap_to_color(shadow_fill)
     while True:
@@ -149,7 +151,7 @@ def decrease_shadow_gaussian(shadow, line, bg_mask, iters = 3):
         shadow_conv[line.astype(bool)] = 0.9 * iters
         shadow_conv = conv(shadow_conv, K, mode='same')
     shadow_conv[bg_mask] = 0
-    shadow_conv[shadow_conv < 0.7] = 0
+    shadow_conv[shadow_conv < 0.5] = 0
     # add this blur to make the shadow edge smooth
     return conv(shadow_conv, K, mode='same')
 
@@ -200,7 +202,60 @@ if __name__ == '__main__':
     #     Image.fromarray(flat_refined).save(join('./results/', img))
 
     display_img(
-        "./results/image143_color.png", 
-        "./results/image143_color_left_shadow1.png", 
-        "./results/image143_line.png", 
-        "./results/image143_flat.npy")
+        "./ShadowMagic_output_shadows/image004_color.png", 
+        "./ShadowMagic_output_shadows/image004_color_left_shadow0.png", 
+        "./ShadowMagic_output_shadows/image004_line.png", 
+        "./ShadowMagic_output_shadows/image004_flat.png")
+
+    # display_img(
+    #     "./ShadowMagic_output_shadows/image7_color.png", 
+    #     "./ShadowMagic_output_shadows/image7_color_right_shadow3.png", 
+    #     "./ShadowMagic_output_shadows/image7_line.png", 
+    #     "./ShadowMagic_output_shadows/image7_flat.png")
+
+    # display_img(
+    #     "./ShadowMagic_output_shadows/image59_color.png", 
+    #     "./ShadowMagic_output_shadows/image59_color_right_shadow1.png", 
+    #     "./ShadowMagic_output_shadows/image59_line.png", 
+    #     "./ShadowMagic_output_shadows/image59_flat.png")
+
+    # display_img(
+    #     "./ShadowMagic_output_shadows/image143_color.png", 
+    #     "./ShadowMagic_output_shadows/image143_color_left_shadow0.png", 
+    #     "./ShadowMagic_output_shadows/image143_line.png", 
+    #     "./ShadowMagic_output_shadows/image143_flat.png")
+
+    # display_img(
+    #     "./ShadowMagic_output_shadows/image149_color.png", 
+    #     "./ShadowMagic_output_shadows/image149_color_top_shadow2.png", 
+    #     "./ShadowMagic_output_shadows/image149_line.png", 
+    #     "./ShadowMagic_output_shadows/image149_flat.png")
+
+    # display_img(
+    #     "./ShadowMagic_output_shadows/image164_color.png", 
+    #     "./ShadowMagic_output_shadows/image164_color_right_shadow0.png", 
+    #     "./ShadowMagic_output_shadows/image164_line.png", 
+    #     "./ShadowMagic_output_shadows/image164_flat.png")
+
+    # display_img(
+    #     "./ShadowMagic_output_shadows/image197_color.png", 
+    #     "./ShadowMagic_output_shadows/image197_color_left_shadow2.png", 
+    #     "./ShadowMagic_output_shadows/image197_line.png", 
+    #     "./ShadowMagic_output_shadows/image197_flat.png")
+
+    # display_img(
+    #     "./ShadowMagic_output_shadows/image228_color.png", 
+    #     "./ShadowMagic_output_shadows/image228_color_right_shadow1.png", 
+    #     "./ShadowMagic_output_shadows/image228_line.png", 
+    #     "./ShadowMagic_output_shadows/image228_flat.png")
+    
+    # display_img(
+    #     "./ShadowMagic_output_shadows/image258_color.png", 
+    #     "./ShadowMagic_output_shadows/image258_color_left_shadow2.png", 
+    #     "./ShadowMagic_output_shadows/image258_line.png", 
+    #     "./ShadowMagic_output_shadows/image258_flat.png")
+    # display_img(
+    #     "./ShadowMagic_output_shadows/image279_color.png", 
+    #     "./ShadowMagic_output_shadows/image279_color_left_shadow3.png", 
+    #     "./ShadowMagic_output_shadows/image279_line.png", 
+    #     "./ShadowMagic_output_shadows/image279_flat.png")

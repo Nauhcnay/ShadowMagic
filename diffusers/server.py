@@ -68,4 +68,9 @@ def main():
     web.run_app(app, port=8000)
 
 if __name__ == '__main__':
+    from multiprocessing import set_start_method
+    try:
+        set_start_method('spawn')
+    except:
+        pass
     main()
