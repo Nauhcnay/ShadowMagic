@@ -79,7 +79,8 @@ def shadow_refine_2nd(fill, shadow, line):
     # remove all bleeding shadow regions
     shadow_fill = np.zeros(shadow.shape).astype(int)
     fill_num = 1
-    for r in np.unique(fill):   
+    for r in np.unique(fill):
+        if r == -1: continue   
         mask_per_flat = fill == r
         ss = shadow.copy()
         ss[~mask_per_flat] = False
