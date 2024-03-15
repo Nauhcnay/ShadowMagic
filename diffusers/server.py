@@ -64,10 +64,11 @@ def to_pil(byte):
     byte = base64.b64decode(byte)
     return Image.open(BytesIO(byte))
 
-def main():
+def main(args):
     app = web.Application(client_max_size = 1024 * 1024 ** 2)
     app.add_routes(routes)
-    web.run_app(app, port=8000)
+    print("log:\tback end working through port: %d"args.port_to_frontend)
+    web.run_app(app, port=args.port_to_frontend)
 
 if __name__ == '__main__':
     from multiprocessing import set_start_method
@@ -75,4 +76,7 @@ if __name__ == '__main__':
         set_start_method('spawn')
     except:
         pass
-    main()
+    parser = argparse.ArgumentParser(description='ShadowMagic BackEnd Ver 0.1')
+    parser.add_argument('--port_to_frontend', type = int, default = 8000)
+    args = parser.parse_args()
+    main(args)

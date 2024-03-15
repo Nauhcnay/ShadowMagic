@@ -32,7 +32,11 @@ def display_img(img, shadow, line, flat, resize_to = 1024):
         shadow = shadow.mean(axis = -1)
     # turn line into a mask which indicates the shadow boundary
     if len(line.shape) > 2:
-        line = (line[..., 0] < 255)
+        if line.shape[-1] == 4:
+            line = 255 - line[..., 3]
+            line = line < 255
+        else:
+            line = (line[..., 0] < 255)
     # turn the shadow to binary
     shadow = to_binary_shadow(shadow)
     h, w  = img.shape[0], img.shape[1]
@@ -50,14 +54,15 @@ def display_img(img, shadow, line, flat, resize_to = 1024):
         line = cv2.resize(line.astype(np.uint8), (w_new, h_new), interpolation = cv2.INTER_NEAREST).astype(float)
 
     # shadow = shadow_refine_2nd(flat, shadow, line)
-    bg_mask = ~(shadow.astype(bool))
+    bg_mask_decrease = ~(shadow.astype(bool))
+    bg_mask_increase = flat == 0
     # add boundary to line
     line = line.astype(bool) & shadow.astype(bool)
-    line = skeletonize(line.astype(bool))
-    line[0,:] = True
-    line[-1,:] = True
-    line[:, 0] = True
-    line[:, -1] = True
+    line_skel = skeletonize(line.astype(bool))
+    line_skel[0,:] = True
+    line_skel[-1,:] = True
+    line_skel[:, 0] = True
+    line_skel[:, -1] = True
 
     # shadow_fill, _ = fillmap_to_color(shadow_fill)
     while True:
@@ -65,9 +70,9 @@ def display_img(img, shadow, line, flat, resize_to = 1024):
         cv2.imshow('results',res)
         k = cv2.waitKey(100)
         if k == ord('a'):
-            shadow = decrease_shadow_gaussian(shadow, line, bg_mask)
+            shadow = decrease_shadow_gaussian(shadow, line_skel, bg_mask_decrease)
         elif k == ord('d'):
-            shadow = increase_shadow(shadow, line)
+            shadow = increase_shadow_gaussian(shadow, line, bg_mask_increase)
         elif k == ord('q'):
             break
     cv2.destroyAllWindows()
@@ -114,35 +119,16 @@ def shadow_refine_2nd(fill, shadow, line):
     shadow = shadow | (line == 1)
     return shadow
 
-def increase_shadow(shadow, line):
-    shadow = shadow.copy()
-    added = np.zeros(shadow.shape).astype(bool)
-    shadow_masked = shadow.astype(float) + line*255
-    shadow_masked = conv(shadow_masked, K, mode='same')
-    added[(shadow_masked > 0) & (shadow_masked < 5)] = True
-    shadow[added] = True
-    return shadow
-
-def decrease_shadow_erosion(shadow, line):
-    # erosion based shadow decreasing
-    shadow = shadow.copy()
-    removed = np.zeros(shadow.shape).astype(bool)
-    shadow_conv = shadow.astype(float)
-    shadow_conv[line.astype(bool)] = 255
+def increase_shadow_gaussian(shadow, line, bg_mask):
+    # this function doesn't work still...
+    K = gkern()
+    shadow = shadow.astype(bool)
+    shadow_conv = shadow.copy().astype(bool)
+    shadow_conv[line.astype(bool)] = -0.9
     shadow_conv = conv(shadow_conv, K, mode='same')
-    removed[(shadow_conv > 0) & (shadow_conv < 5)] = True
-    shadow[removed] = False
+    shadow = shadow | (shadow_conv > 0.8)
+    shadow[bg_mask] = False
     return shadow
-
-# https://stackoverflow.com/questions/29731726/how-to-calculate-a-gaussian-kernel-matrix-efficiently-in-numpy
-def gkern(l=5, sig=1.):
-    """
-    creates gaussian kernel with side length `l` and a sigma of `sig`
-    """
-    ax = np.linspace(-(l - 1) / 2., (l - 1) / 2., l)
-    gauss = np.exp(-0.5 * np.square(ax) / np.square(sig))
-    kernel = np.outer(gauss, gauss)
-    return kernel / np.sum(kernel)
 
 def decrease_shadow_gaussian(shadow, line, bg_mask, iters = 3):
     # gaussian blur based shadow decreasing
@@ -153,8 +139,30 @@ def decrease_shadow_gaussian(shadow, line, bg_mask, iters = 3):
         shadow_conv = conv(shadow_conv, K, mode='same')
     shadow_conv[bg_mask] = 0
     shadow_conv[shadow_conv < 0.5] = 0
+    
     # add this blur to make the shadow edge smooth
     return conv(shadow_conv, K, mode='same')
+
+# def decrease_shadow_erosion(shadow, line):
+#     # erosion based shadow decreasing
+#     shadow = shadow.copy()
+#     removed = np.zeros(shadow.shape).astype(bool)
+#     shadow_conv = shadow.astype(float)
+#     shadow_conv[line.astype(bool)] = 255
+#     shadow_conv = conv(shadow_conv, K, mode='same')
+#     removed[(shadow_conv > 0) & (shadow_conv < 5)] = True
+#     shadow[removed] = False
+#     return shadow
+
+# https://stackoverflow.com/questions/29731726/how-to-calculate-a-gaussian-kernel-matrix-efficiently-in-numpy
+def gkern(l=5, sig=1.):
+    """
+    creates gaussian kernel with side length `l` and a sigma of `sig`
+    """
+    ax = np.linspace(-(l - 1) / 2., (l - 1) / 2., l)
+    gauss = np.exp(-0.5 * np.square(ax) / np.square(sig))
+    kernel = np.outer(gauss, gauss)
+    return kernel / np.sum(kernel)
 
 def to_blend_shadow(shadow, thr = 0.9, smoothing = True, for_psd = False):
     res = np.zeros(shadow.shape)
