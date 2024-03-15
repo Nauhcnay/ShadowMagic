@@ -67,7 +67,7 @@ def to_pil(byte):
 def main(args):
     app = web.Application(client_max_size = 1024 * 1024 ** 2)
     app.add_routes(routes)
-    print("log:\tback end working through port: %d"args.port_to_frontend)
+    print("log:\tback end working through port: %d"%args.port_to_frontend)
     web.run_app(app, port=args.port_to_frontend)
 
 if __name__ == '__main__':
