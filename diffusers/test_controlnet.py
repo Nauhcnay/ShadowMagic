@@ -426,6 +426,11 @@ def parse_args(input_args=None):
         type=int, 
         default=None, 
         help="A seed for reproducible training.")
+    parser.add_argument(
+        "--port_to_frontend", 
+        type=int, 
+        default=8000, 
+        help="A seed for reproducible training.")
 
     args = parser.parse_args()
     return args
