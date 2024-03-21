@@ -309,18 +309,18 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, 
     # Image.fromarray(res_np).save("bb.png")
 
     # convert shadow flag map into shadows
-    # res_np = res_np.astype(float)
-    # res_np[res_np == 1] = 0.5
-    # res_np[res_np == 0] = 1
+    res_np_overlay = res_np.astype(float).copy()
+    res_np_overlay[res_np == 1] = 0.5
+    res_np_overlay[res_np == 0] = 1
     res_np = ~res_np
 
     img_np = np.array(img)
     
     if to_png:
         if seed is None:
-            Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
+            Image.fromarray((img_np * res_np_overlay[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_blend%d.png"%(direction, idx)))
         else:
-            Image.fromarray((img_np * res_np[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_blend%d.png"%(direction, seed, idx)))
+            Image.fromarray((img_np * res_np_overlay[..., np.newaxis]).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_blend%d.png"%(direction, seed, idx)))
         
         if seed is None:
             Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
