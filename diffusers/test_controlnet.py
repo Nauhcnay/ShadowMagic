@@ -90,7 +90,7 @@ def predict_single(args, prompt, path_to_image, vae, text_encoder, tokenizer, un
         w_new = int(w * ratio)
         validation_image = raw_img.resize((w_new, h_new))
     elif 'shadesketch' in str(path_to_image):
-        validation_image = real_esrgan_resize(raw_img, 1024, 1024)
+        validation_image = real_esrgan_resize(raw_img, 1024, 1024, path_to_realesrgan, pyfile)
     else:
         validation_image = raw_img
 
@@ -145,7 +145,7 @@ def predict_single(args, prompt, path_to_image, vae, text_encoder, tokenizer, un
                 seeds.append(args.seed)
     return images, seeds
 
-def real_esrgan_resize(image, h, w):
+def real_esrgan_resize(image, h, w, path_to_realesrgan, pyfile):
     temp_png = str(uuid.uuid4()) + ".png"
     out_path = Path(temp_png.replace(".png", ""))
     png_4x = temp_png.replace(".png", "_out.png")
