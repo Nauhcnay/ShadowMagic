@@ -137,7 +137,7 @@ def predict_single(args, prompt, path_to_image, vae, text_encoder, tokenizer, un
             if 'shadesketch' not in str(path_to_image):
                 ## upscale the output back to origianl size
                 # let's upscale it 4x by realesrgan first
-                image = real_esrgan_resize(image, h, w)
+                image = real_esrgan_resize(image, h, w, path_to_realesrgan, pyfile)
             images.append(image)
             if args.seed == -1:
                 seeds.append(seed)
