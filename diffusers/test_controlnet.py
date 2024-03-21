@@ -278,7 +278,8 @@ def predict_and_extract_shadow(
     elif 'shadesketch' in img:
         prompt, direction = gen_prompt_color(direction)
         input_img_path = path_to_img / img
-
+        line = img
+        flat = None
     else:
         raise ValueError('not supported input %s!'%img)
 
@@ -307,17 +308,15 @@ def predict_and_extract_shadow(
     return shadows
 
 def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, seed = None, to_png = True):
-    flat_mask = flat.mean(axis = -1) == 255
     res_np = (np.array(res).mean(axis = -1) / 255) < 0.65
-    res_np[flat_mask] = False
-    
-    print("log:\trefine predicted shadow")
-    # convert flat to fill
-    fill, _ = flat_to_fillmap(flat, False)
-    # aa = fillmap_to_color(fill)
-    # Image.fromarray(res_np).save("aa.png")
-    res_np = shadow_refine_2nd(fill, res_np, line < 0.5)
-    # Image.fromarray(res_np).save("bb.png")
+    if flat is not None:
+        flat_mask = flat.mean(axis = -1) == 255
+        res_np[flat_mask] = False
+        
+        print("log:\trefine predicted shadow")
+        # convert flat to fill
+        fill, _ = flat_to_fillmap(flat, False)
+        res_np = shadow_refine_2nd(fill, res_np, line < 0.5)
 
     # convert shadow flag map into shadows
     res_np_overlay = res_np.astype(float).copy()
@@ -335,6 +334,7 @@ def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, 
         
         if seed is None:
             Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow%d.png"%(direction, idx)))
+            Image.fromarray((np.array(res).mean(axis = -1)).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_shadow_raw_%d.png"%(direction, idx)))
         else:
             Image.fromarray((res_np*255).astype(np.uint8)).save(out_path/name.replace(".png", "_%s_%d_shadow%d.png"%(direction, seed, idx)))
     # res_np = (res_np*255).astype(np.uint8)
