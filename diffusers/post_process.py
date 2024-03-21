@@ -201,20 +201,20 @@ def decrease_shadow(shadow, line):
 
 if __name__ == '__main__':
     # refine all flat regions in the results folder
-    # for img in os.listdir('./results/'):
-    #     if 'flat' not in img or 'png' not in img: continue
-    #     print('log:\topening %s'%img)
-    #     flat = np.array(Image.open(join('./results/', img)))
-    #     line = np.array(Image.open(join('./results/', img.replace('flat', 'line')))).mean(axis = -1)
-    #     flat_refined, fill = flat_refine(flat, line)
-    #     # np.save(join('./results/', img.replace('.png', '.npy')), fill)
-    #     Image.fromarray(flat_refined).save(join('./results/', img))
+    for img in os.listdir('./results/'):
+        if 'flat' not in img or 'png' not in img: continue
+        print('log:\topening %s'%img)
+        flat = np.array(Image.open(join('./results/', img)))
+        line = np.array(Image.open(join('./results/', img.replace('flat', 'line')))).mean(axis = -1)
+        flat_refined, fill = flat_refine(flat, line)
+        # np.save(join('./results/', img.replace('.png', '.npy')), fill)
+        Image.fromarray(flat_refined).save(join('./results/', img))
 
-    display_img(
-        "./ShadowMagic_output_shadows/image004_color.png", 
-        "./ShadowMagic_output_shadows/image004_color_left_shadow0.png", 
-        "./ShadowMagic_output_shadows/image004_line.png", 
-        "./ShadowMagic_output_shadows/image004_flat.png")
+    # display_img(
+    #     "./ShadowMagic_output_shadows/image004_color.png", 
+    #     "./ShadowMagic_output_shadows/image004_color_left_shadow0.png", 
+    #     "./ShadowMagic_output_shadows/image004_line.png", 
+    #     "./ShadowMagic_output_shadows/image004_flat.png")
 
     # display_img(
     #     "./ShadowMagic_output_shadows/image7_color.png", 

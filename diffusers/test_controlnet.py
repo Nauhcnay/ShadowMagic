@@ -480,7 +480,8 @@ def main(args):
     path_to_img = Path(args.img)
     assert path_to_img.is_dir()
 
-    dirs = ['left', 'right', "top", "back"]
+    # dirs = ['left', 'right', "top", "back"]
+    dirs = ['left', 'right']
 
     for img in os.listdir(args.img):
         if 'png' not in img or 'color' in img or 'line' in img: continue
