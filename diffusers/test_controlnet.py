@@ -89,7 +89,7 @@ def predict_single(args, prompt, path_to_image, vae, text_encoder, tokenizer, un
         h_new = int(h * ratio)
         w_new = int(w * ratio)
         validation_image = raw_img.resize((w_new, h_new))
-    elif 'shadesketch' in path_to_img:
+    elif 'shadesketch' in path_to_image:
         validation_image = real_esrgan_resize(raw_img, 1024, 1024)
     else:
         validation_image = raw_img
@@ -134,7 +134,7 @@ def predict_single(args, prompt, path_to_image, vae, text_encoder, tokenizer, un
                 negative_prompt= validation_prompt_neg,
                 guidance_scale = args.guidance_scale
             ).images[0]
-            if 'shadesketch' not in path_to_img:
+            if 'shadesketch' not in path_to_image:
                 ## upscale the output back to origianl size
                 # let's upscale it 4x by realesrgan first
                 image = real_esrgan_resize(image, h, w)
