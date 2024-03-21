@@ -89,6 +89,8 @@ def predict_single(args, prompt, path_to_image, vae, text_encoder, tokenizer, un
         h_new = int(h * ratio)
         w_new = int(w * ratio)
         validation_image = raw_img.resize((w_new, h_new))
+    elif 'shadesketch' in path_to_img:
+        validation_image = real_esrgan_resize(raw_img, 1024, 1024)
     else:
         validation_image = raw_img
 
@@ -132,26 +134,31 @@ def predict_single(args, prompt, path_to_image, vae, text_encoder, tokenizer, un
                 negative_prompt= validation_prompt_neg,
                 guidance_scale = args.guidance_scale
             ).images[0]
-            ## upscale the output back to origianl size
-            # let's upscale it 4x by realesrgan first
-            temp_png = str(uuid.uuid4()) + ".png"
-            out_path = Path(temp_png.replace(".png", ""))
-            png_4x = temp_png.replace(".png", "_out.png")
-            image.save(temp_png)
-            cmd  = "python %s -n RealESRGAN_x4plus_anime_6B -i %s -o %s -s 2"%(path_to_realesrgan/pyfile, temp_png, out_path)
-            os.system(cmd)
-            image = Image.open(out_path/png_4x)
-            # resize back to original size
-            image = image.resize((w, h))
-            # clean up
-            os.remove(temp_png)
-            shutil.rmtree(out_path)
+            if 'shadesketch' not in path_to_img:
+                ## upscale the output back to origianl size
+                # let's upscale it 4x by realesrgan first
+                image = real_esrgan_resize(image, h, w)
             images.append(image)
             if args.seed == -1:
                 seeds.append(seed)
             else:
                 seeds.append(args.seed)
     return images, seeds
+
+def real_esrgan_resize(image, h, w):
+    temp_png = str(uuid.uuid4()) + ".png"
+    out_path = Path(temp_png.replace(".png", ""))
+    png_4x = temp_png.replace(".png", "_out.png")
+    image.save(temp_png)
+    cmd  = "python %s -n RealESRGAN_x4plus_anime_6B -i %s -o %s -s 2"%(path_to_realesrgan/pyfile, temp_png, out_path)
+    os.system(cmd)
+    image = Image.open(out_path/png_4x)
+    # resize back to original size
+    image = image.resize((w, h))
+    # clean up
+    os.remove(temp_png)
+    shutil.rmtree(out_path)
+    return image
 
 def init_controlnet(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -268,6 +275,10 @@ def predict_and_extract_shadow(
             line = line.mean(axis = -1).astype(float) / 255
         if input_img_path.exists() is False:
             Image.fromarray((flat * line[..., np.newaxis]).astype(np.uint8)).save(input_img_path)
+    elif 'shadesketch' in img:
+        prompt, direction = gen_prompt_color(direction)
+        input_img_path = path_to_img / img
+
     else:
         raise ValueError('not supported input %s!'%img)
 
