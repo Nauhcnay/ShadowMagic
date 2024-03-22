@@ -277,7 +277,7 @@ def predict_and_extract_shadow(
         if input_img_path.exists() is False:
             Image.fromarray((flat * line[..., np.newaxis]).astype(np.uint8)).save(input_img_path)
     elif 'shadesketch' in img:
-        prompt, direction = gen_prompt_color(direction)
+        prompt, direction = gen_prompt_line(direction)
         input_img_path = path_to_img / img
         line = img
         flat = None
@@ -311,7 +311,7 @@ def predict_and_extract_shadow(
     return shadows
 
 def extract_shadow(res, img, name, direction, idx, out_path, flat, line = None, seed = None, to_png = True):
-    res_np = (np.array(res).mean(axis = -1) / 255) < 0.65
+    res_np = (np.array(res).mean(axis = -1) / 255) < 0.45
     if flat is not None:
         flat_mask = flat.mean(axis = -1) == 255
         res_np[flat_mask] = False
@@ -494,8 +494,8 @@ def main(args):
     path_to_img = Path(args.img)
     assert path_to_img.is_dir()
 
-    # dirs = ['left', 'right', "top", "back"]
-    dirs = ['left', 'right']
+    dirs = ['left', 'right', "top", "back"]
+    # dirs = ['left', 'right']
 
     for img in os.listdir(args.img):
         if 'png' not in img or 'color' in img or 'line' in img: continue
