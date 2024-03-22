@@ -277,7 +277,7 @@ def predict_and_extract_shadow(
         if input_img_path.exists() is False:
             Image.fromarray((flat * line[..., np.newaxis]).astype(np.uint8)).save(input_img_path)
     elif 'shadesketch' in img:
-        prompt, direction = gen_prompt_line(direction)
+        prompt, direction = gen_prompt_color(direction)
         input_img_path = path_to_img / img
         line = img
         flat = None
