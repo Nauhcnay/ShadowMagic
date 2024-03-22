@@ -91,7 +91,7 @@ def predict_single(args, prompt, path_to_image, vae, text_encoder, tokenizer, un
         validation_image = raw_img.resize((w_new, h_new))
     elif 'shadesketch' in str(path_to_image):
         validation_image = real_esrgan_resize(raw_img, 1024, 1024, path_to_realesrgan, pyfile)
-        Image.fromarray(validation_image.astype(np.uint8)).save(Path("results")/path_to_image.name.replace(".png", "_upscaled.png"))
+        validation_image.save(Path("results")/path_to_image.name.replace(".png", "_upscaled.png"))
     else:
         validation_image = raw_img
 
