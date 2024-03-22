@@ -91,6 +91,7 @@ def predict_single(args, prompt, path_to_image, vae, text_encoder, tokenizer, un
         validation_image = raw_img.resize((w_new, h_new))
     elif 'shadesketch' in str(path_to_image):
         validation_image = real_esrgan_resize(raw_img, 1024, 1024, path_to_realesrgan, pyfile)
+        Image.fromarray(validation_image.astype(np.uint8)).save(Path("results")/path_to_image.name.replace(".png", "_upscaled.png"))
     else:
         validation_image = raw_img
 
@@ -292,6 +293,8 @@ def predict_and_extract_shadow(
     out_path = Path('results')
     img_raw = Image.open(input_img_path)
     img_raw.save(out_path / img.replace('flat', 'color'))
+    if 'shadesketch' in str(input_img_path):
+        img_raw = Image.open(out_path / img.replace('.png', '_upscaled.png'))
     shadows = []
     for i in range(len(imgs)):
         shadows.append(extract_shadow(
